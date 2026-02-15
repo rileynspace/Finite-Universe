@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>3D Universe Map</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { overflow: hidden; background: #000; color: #ccc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  canvas { display: block; }
+
+  /* UI Panels */
+  .panel {
+    position: absolute;
+    background: rgba(10, 15, 30, 0.92);
+    border: 1px solid rgba(100, 140, 255, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+    backdrop-filter: blur(6px);
+  }
+  .panel h3 {
+    color: #7ab4ff;
+    margin-bottom: 10px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .panel label {
+    display: block;
+    font-size: 12px;
+    color: #8899bb;
+    margin-bottom: 3px;
+    margin-top: 8px;
+  }
+  .panel input[type="text"],
+  .panel input[type="number"] {
+    width: 100%;
+    padding: 6px 8px;
+    background: rgba(20, 30, 60, 0.8);
+    border: 1px solid rgba(100, 140, 255, 0.25);
+    border-radius: 4px;
+    color: #ddeeff;
+    font-size: 13px;
+    outline: none;
+  }
+  .panel input:focus {
+    border-color: rgba(100, 140, 255, 0.6);
+  }
+  .btn {
+    display: inline-block;
+    padding: 7px 14px;
+    margin-top: 10px;
+    margin-right: 4px;
+    background: rgba(60, 100, 220, 0.3);
+    border: 1px solid rgba(100, 140, 255, 0.4);
+    border-radius: 4px;
+    color: #aaccff;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.2s;
+  }
+  .btn:hover { background: rgba(60, 100, 220, 0.55); }
+  .btn.active { background: rgba(60, 100, 220, 0.6); border-color: #7ab4ff; color: #fff; }
+  .btn.danger { background: rgba(200, 50, 50, 0.3); border-color: rgba(255, 80, 80, 0.4); color: #ffaaaa; }
+  .btn.danger:hover { background: rgba(200, 50, 50, 0.55); }
+
+  /* Add Star Panel */
+  #add-panel {
+    top: 16px;
+    left: 16px;
+    width: 220px;
+  }
+  .coord-row {
+    display: flex;
+    gap: 6px;
+  }
+  .coord-row > div { flex: 1; }
+
+  /* Tools Panel */
+  #tools-panel {
+    top: 16px;
+    right: 16px;
+    width: 240px;
+  }
+  #distance-result {
+    margin-top: 10px;
+    padding: 8px;
+    background: rgba(20, 30, 60, 0.6);
+    border-radius: 4px;
+    font-size: 13px;
+    min-height: 20px;
+    display: none;
+  }
+  #distance-result.visible { display: block; }
+
+  /* Star Info Tooltip */
+  #star-tooltip {
+    position: absolute;
+    display: none;
+    background: rgba(10, 15, 30, 0.95);
+    border: 1px solid rgba(100, 140, 255, 0.4);
+    border-radius: 6px;
+    padding: 10px 14px;
+    pointer-events: none;
+    font-size: 13px;
+    max-width: 250px;
+  }
+  #star-tooltip .star-name {
+    color: #7ab4ff;
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  #star-tooltip .star-coords { color: #88aacc; }
+
+  /* Star List */
+  #star-list-panel {
+    position: absolute;
+    bottom: 16px;
+    left: 16px;
+    width: 260px;
+    max-height: 250px;
+    background: rgba(10, 15, 30, 0.92);
+    border: 1px solid rgba(100, 140, 255, 0.3);
+    border-radius: 8px;
+    padding: 16px;
+    backdrop-filter: blur(6px);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #star-list-panel h3 {
+    color: #7ab4ff;
+    margin-bottom: 8px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+  #star-list {
+    overflow-y: auto;
+    flex: 1;
+  }
+  .star-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .star-entry:hover { background: rgba(60, 100, 220, 0.2); }
+  .star-entry.selected { background: rgba(60, 100, 220, 0.35); }
+  .star-entry .name { color: #ddeeff; }
+  .star-entry .coords { color: #667799; font-size: 11px; }
+  .star-entry .delete-star {
+    color: #ff6666;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .star-entry:hover .delete-star { opacity: 1; }
+
+  /* File input hidden */
+  #file-input { display: none; }
+
+  /* Instructions */
+  #instructions {
+    position: absolute;
+    bottom: 16px;
+    right: 16px;
+    background: rgba(10, 15, 30, 0.85);
+    border: 1px solid rgba(100, 140, 255, 0.2);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 11px;
+    color: #667799;
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- Add Star Panel -->
+<div id="add-panel" class="panel">
+  <h3>Add Star</h3>
+  <label for="star-name">Name</label>
+  <input type="text" id="star-name" placeholder="e.g. Sol">
+  <div class="coord-row">
+    <div>
+      <label for="star-x">X (ly)</label>
+      <input type="number" id="star-x" placeholder="0" min="0" max="1000" step="any">
+    </div>
+    <div>
+      <label for="star-y">Y (ly)</label>
+      <input type="number" id="star-y" placeholder="0" min="0" max="1000" step="any">
+    </div>
+    <div>
+      <label for="star-z">Z (ly)</label>
+      <input type="number" id="star-z" placeholder="0" min="0" max="1000" step="any">
+    </div>
+  </div>
+  <button class="btn" id="btn-add-star">Add Star</button>
+</div>
+
+<!-- Tools Panel -->
+<div id="tools-panel" class="panel">
+  <h3>Tools</h3>
+  <button class="btn" id="btn-measure">Measure Distance</button>
+  <button class="btn" id="btn-cancel-measure" style="display:none;">Cancel</button>
+  <div id="measure-instructions" style="display:none; margin-top:8px; font-size:12px; color:#88aacc;">
+    Click two stars to measure the distance between them.
+  </div>
+  <div id="distance-result">
+    <span id="distance-text"></span>
+  </div>
+  <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:14px 0 10px;">
+  <h3>Data</h3>
+  <button class="btn" id="btn-export">Export JSON</button>
+  <button class="btn" id="btn-import">Import JSON</button>
+  <button class="btn danger" id="btn-clear-all">Clear All</button>
+  <input type="file" id="file-input" accept=".json">
+</div>
+
+<!-- Star Tooltip -->
+<div id="star-tooltip">
+  <div class="star-name" id="tooltip-name"></div>
+  <div class="star-coords" id="tooltip-coords"></div>
+</div>
+
+<!-- Star List -->
+<div id="star-list-panel">
+  <h3>Stars (<span id="star-count">0</span>)</h3>
+  <div id="star-list"></div>
+</div>
+
+<!-- Instructions -->
+<div id="instructions">
+  <strong style="color:#7ab4ff;">Controls</strong><br>
+  Left-click + drag: Rotate<br>
+  Right-click + drag: Pan<br>
+  Scroll: Zoom<br>
+  Click star: Select / Info
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.162.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.162.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ── State ──────────────────────────────────────────────
+const UNIVERSE_SIZE = 1000; // light years per axis
+let stars = [];       // { id, name, x, y, z }
+let nextId = 1;
+let measureMode = false;
+let measureSelection = []; // up to 2 star ids
+let measureLine = null;
+let measureLabel = null;
+
+// ── Three.js Setup ─────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x020408);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 5000);
+camera.position.set(1400, 1000, 1400);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+document.body.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(UNIVERSE_SIZE / 2, UNIVERSE_SIZE / 2, UNIVERSE_SIZE / 2);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 50;
+controls.maxDistance = 3500;
+controls.update();
+
+// ── Ambient light ──────────────────────────────────────
+scene.add(new THREE.AmbientLight(0xffffff, 0.5));
+
+// ── Grid / Bounding Box ───────────────────────────────
+function buildBoundingBox() {
+  const S = UNIVERSE_SIZE;
+  const geo = new THREE.BufferGeometry();
+  const vertices = new Float32Array([
+    0,0,0, S,0,0,  S,0,0, S,S,0,  S,S,0, 0,S,0,  0,S,0, 0,0,0,
+    0,0,S, S,0,S,  S,0,S, S,S,S,  S,S,S, 0,S,S,  0,S,S, 0,0,S,
+    0,0,0, 0,0,S,  S,0,0, S,0,S,  S,S,0, S,S,S,  0,S,0, 0,S,S,
+  ]);
+  geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0x1a2a4a, transparent: true, opacity: 0.6 });
+  scene.add(new THREE.LineSegments(geo, mat));
+}
+buildBoundingBox();
+
+// ── Grid lines on the floor (Y=0 plane) ──────────────
+function buildFloorGrid() {
+  const S = UNIVERSE_SIZE;
+  const divisions = 10;
+  const step = S / divisions;
+  const geo = new THREE.BufferGeometry();
+  const verts = [];
+  for (let i = 0; i <= divisions; i++) {
+    const p = i * step;
+    verts.push(p, 0, 0, p, 0, S);
+    verts.push(0, 0, p, S, 0, p);
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0x0e1a30, transparent: true, opacity: 0.5 });
+  scene.add(new THREE.LineSegments(geo, mat));
+}
+buildFloorGrid();
+
+// ── Axis Labels ───────────────────────────────────────
+function makeTextSprite(text, position, color = '#7ab4ff') {
+  const canvas = document.createElement('canvas');
+  const size = 256;
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'Bold 48px Arial';
+  ctx.fillStyle = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, size / 2, size / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(position);
+  sprite.scale.set(80, 80, 1);
+  sprite.userData.isLabel = true;
+  scene.add(sprite);
+  return sprite;
+}
+
+// Axis tick labels
+const S = UNIVERSE_SIZE;
+for (let i = 0; i <= S; i += 200) {
+  if (i > 0) {
+    makeTextSprite(`${i}`, new THREE.Vector3(i, -30, 0), '#446688');
+    makeTextSprite(`${i}`, new THREE.Vector3(0, i, -30), '#446688');
+    makeTextSprite(`${i}`, new THREE.Vector3(-30, 0, i), '#446688');
+  }
+}
+makeTextSprite('X (ly)', new THREE.Vector3(S / 2, -60, 0), '#ff6666');
+makeTextSprite('Y (ly)', new THREE.Vector3(-60, S / 2, 0), '#66ff66');
+makeTextSprite('Z (ly)', new THREE.Vector3(0, -60, S / 2), '#6688ff');
+
+// Colored axis lines
+function buildAxisLines() {
+  const len = UNIVERSE_SIZE + 40;
+  const axisData = [
+    { dir: [len, 0, 0], color: 0xff4444 },
+    { dir: [0, len, 0], color: 0x44ff44 },
+    { dir: [0, 0, len], color: 0x4488ff },
+  ];
+  for (const a of axisData) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,0,0, ...a.dir]), 3));
+    const mat = new THREE.LineBasicMaterial({ color: a.color, transparent: true, opacity: 0.5 });
+    scene.add(new THREE.LineSegments(geo, mat));
+  }
+}
+buildAxisLines();
+
+// ── Star Rendering ────────────────────────────────────
+const starGroup = new THREE.Group();
+scene.add(starGroup);
+const nameSprites = new THREE.Group();
+scene.add(nameSprites);
+
+// Star point texture
+function createStarTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.15, 'rgba(200,220,255,0.9)');
+  gradient.addColorStop(0.4, 'rgba(100,150,255,0.4)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(canvas);
+}
+const starTexture = createStarTexture();
+
+function rebuildStarMeshes() {
+  // Clear
+  while (starGroup.children.length) starGroup.remove(starGroup.children[0]);
+  while (nameSprites.children.length) nameSprites.remove(nameSprites.children[0]);
+
+  for (const star of stars) {
+    // Star point sprite
+    const mat = new THREE.SpriteMaterial({
+      map: starTexture,
+      color: 0xffffff,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+    });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.set(star.x, star.y, star.z);
+    sprite.scale.set(24, 24, 1);
+    sprite.userData.starId = star.id;
+    starGroup.add(sprite);
+
+    // Name label
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.font = '36px Arial';
+    ctx.fillStyle = '#aaccff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(star.name, 256, 64);
+    const tex = new THREE.CanvasTexture(canvas);
+    const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const label = new THREE.Sprite(labelMat);
+    label.position.set(star.x, star.y + 20, star.z);
+    label.scale.set(100, 25, 1);
+    label.userData.starId = star.id;
+    nameSprites.add(label);
+  }
+}
+
+// ── Star CRUD ─────────────────────────────────────────
+function addStar(name, x, y, z) {
+  const star = { id: nextId++, name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z) };
+  stars.push(star);
+  rebuildStarMeshes();
+  updateStarList();
+  saveToLocalStorage();
+  return star;
+}
+
+function removeStar(id) {
+  stars = stars.filter(s => s.id !== id);
+  measureSelection = measureSelection.filter(sid => sid !== id);
+  clearMeasureLine();
+  rebuildStarMeshes();
+  updateStarList();
+  saveToLocalStorage();
+}
+
+// ── Distance Measurement ──────────────────────────────
+function clearMeasureLine() {
+  if (measureLine) { scene.remove(measureLine); measureLine = null; }
+  if (measureLabel) { scene.remove(measureLabel); measureLabel = null; }
+  document.getElementById('distance-result').classList.remove('visible');
+}
+
+function drawMeasureLine(s1, s2) {
+  clearMeasureLine();
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+    s1.x, s1.y, s1.z, s2.x, s2.y, s2.z
+  ]), 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0xffcc44, linewidth: 2, transparent: true, opacity: 0.8 });
+  measureLine = new THREE.LineSegments(geo, mat);
+  scene.add(measureLine);
+
+  // Distance
+  const dx = s2.x - s1.x, dy = s2.y - s1.y, dz = s2.z - s1.z;
+  const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+
+  // Midpoint label
+  const mx = (s1.x + s2.x) / 2, my = (s1.y + s2.y) / 2 + 20, mz = (s1.z + s2.z) / 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = 512;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+  ctx.font = 'Bold 40px Arial';
+  ctx.fillStyle = '#ffcc44';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${dist.toFixed(2)} ly`, 256, 64);
+  const tex = new THREE.CanvasTexture(canvas);
+  const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+  measureLabel = new THREE.Sprite(labelMat);
+  measureLabel.position.set(mx, my, mz);
+  measureLabel.scale.set(120, 30, 1);
+  scene.add(measureLabel);
+
+  // UI result
+  const resultEl = document.getElementById('distance-result');
+  const textEl = document.getElementById('distance-text');
+  textEl.innerHTML = `<strong>${s1.name}</strong> → <strong>${s2.name}</strong><br>${dist.toFixed(2)} light years`;
+  resultEl.classList.add('visible');
+}
+
+// ── Raycasting (click/hover) ──────────────────────────
+const raycaster = new THREE.Raycaster();
+raycaster.params.Sprite = { threshold: 15 };
+const mouse = new THREE.Vector2();
+let hoveredStar = null;
+
+function getIntersectedStar(event) {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  raycaster.setFromCamera(mouse, camera);
+  const hits = raycaster.intersectObjects(starGroup.children);
+  if (hits.length > 0) {
+    const id = hits[0].object.userData.starId;
+    return stars.find(s => s.id === id) || null;
+  }
+  return null;
+}
+
+// Tooltip
+const tooltip = document.getElementById('star-tooltip');
+const tooltipName = document.getElementById('tooltip-name');
+const tooltipCoords = document.getElementById('tooltip-coords');
+
+renderer.domElement.addEventListener('mousemove', (e) => {
+  const star = getIntersectedStar(e);
+  if (star) {
+    hoveredStar = star;
+    tooltipName.textContent = star.name;
+    tooltipCoords.textContent = `(${star.x.toFixed(1)}, ${star.y.toFixed(1)}, ${star.z.toFixed(1)}) ly`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 16) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+    document.body.style.cursor = 'pointer';
+  } else {
+    hoveredStar = null;
+    tooltip.style.display = 'none';
+    document.body.style.cursor = 'default';
+  }
+});
+
+renderer.domElement.addEventListener('click', (e) => {
+  const star = getIntersectedStar(e);
+  if (!star) return;
+
+  if (measureMode) {
+    // Add to selection
+    if (measureSelection.includes(star.id)) return;
+    measureSelection.push(star.id);
+    highlightStarInList(star.id);
+
+    if (measureSelection.length === 2) {
+      const s1 = stars.find(s => s.id === measureSelection[0]);
+      const s2 = stars.find(s => s.id === measureSelection[1]);
+      if (s1 && s2) drawMeasureLine(s1, s2);
+      measureSelection = [];
+      setMeasureMode(false);
+    }
+  }
+});
+
+// ── Measure Mode Toggle ───────────────────────────────
+function setMeasureMode(on) {
+  measureMode = on;
+  measureSelection = [];
+  document.getElementById('btn-measure').style.display = on ? 'none' : '';
+  document.getElementById('btn-cancel-measure').style.display = on ? '' : 'none';
+  document.getElementById('measure-instructions').style.display = on ? 'block' : 'none';
+  if (on) {
+    document.getElementById('btn-measure').classList.add('active');
+  } else {
+    document.getElementById('btn-measure').classList.remove('active');
+  }
+}
+
+document.getElementById('btn-measure').addEventListener('click', () => setMeasureMode(true));
+document.getElementById('btn-cancel-measure').addEventListener('click', () => {
+  setMeasureMode(false);
+  clearMeasureLine();
+});
+
+// ── Add Star Button ───────────────────────────────────
+document.getElementById('btn-add-star').addEventListener('click', () => {
+  const name = document.getElementById('star-name').value.trim();
+  const x = document.getElementById('star-x').value;
+  const y = document.getElementById('star-y').value;
+  const z = document.getElementById('star-z').value;
+  if (!name) { alert('Please enter a star name.'); return; }
+  if (x === '' || y === '' || z === '') { alert('Please enter all coordinates.'); return; }
+  const xn = parseFloat(x), yn = parseFloat(y), zn = parseFloat(z);
+  if ([xn, yn, zn].some(v => isNaN(v) || v < 0 || v > UNIVERSE_SIZE)) {
+    alert(`Coordinates must be between 0 and ${UNIVERSE_SIZE}.`);
+    return;
+  }
+  addStar(name, xn, yn, zn);
+  document.getElementById('star-name').value = '';
+  document.getElementById('star-x').value = '';
+  document.getElementById('star-y').value = '';
+  document.getElementById('star-z').value = '';
+});
+
+// ── Star List UI ──────────────────────────────────────
+function updateStarList() {
+  const listEl = document.getElementById('star-list');
+  const countEl = document.getElementById('star-count');
+  countEl.textContent = stars.length;
+  listEl.innerHTML = '';
+  for (const star of stars) {
+    const entry = document.createElement('div');
+    entry.className = 'star-entry';
+    entry.dataset.id = star.id;
+    entry.innerHTML = `
+      <div>
+        <span class="name">${star.name}</span><br>
+        <span class="coords">(${star.x.toFixed(1)}, ${star.y.toFixed(1)}, ${star.z.toFixed(1)}) ly</span>
+      </div>
+      <span class="delete-star" title="Delete star">&times;</span>
+    `;
+    // Click to fly camera to star
+    entry.querySelector('.name').addEventListener('click', () => {
+      controls.target.set(star.x, star.y, star.z);
+    });
+    entry.querySelector('.delete-star').addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeStar(star.id);
+    });
+    listEl.appendChild(entry);
+  }
+}
+
+function highlightStarInList(id) {
+  document.querySelectorAll('.star-entry').forEach(el => {
+    el.classList.toggle('selected', parseInt(el.dataset.id) === id);
+  });
+}
+
+// ── Export / Import ───────────────────────────────────
+document.getElementById('btn-export').addEventListener('click', () => {
+  const data = JSON.stringify(stars, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'universe-stars.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('btn-import').addEventListener('click', () => {
+  document.getElementById('file-input').click();
+});
+
+document.getElementById('file-input').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if (!Array.isArray(imported)) throw new Error('Expected an array');
+      for (const s of imported) {
+        if (s.name && s.x !== undefined && s.y !== undefined && s.z !== undefined) {
+          addStar(s.name, s.x, s.y, s.z);
+        }
+      }
+    } catch (err) {
+      alert('Invalid JSON file: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+document.getElementById('btn-clear-all').addEventListener('click', () => {
+  if (!confirm('Delete all stars?')) return;
+  stars = [];
+  nextId = 1;
+  measureSelection = [];
+  clearMeasureLine();
+  rebuildStarMeshes();
+  updateStarList();
+  saveToLocalStorage();
+});
+
+// ── LocalStorage ──────────────────────────────────────
+function saveToLocalStorage() {
+  localStorage.setItem('universe-map-stars', JSON.stringify(stars));
+  localStorage.setItem('universe-map-nextId', nextId);
+}
+
+function loadFromLocalStorage() {
+  try {
+    const data = localStorage.getItem('universe-map-stars');
+    const nid = localStorage.getItem('universe-map-nextId');
+    if (data) {
+      stars = JSON.parse(data);
+      nextId = nid ? parseInt(nid) : (stars.length ? Math.max(...stars.map(s => s.id)) + 1 : 1);
+      rebuildStarMeshes();
+      updateStarList();
+    }
+  } catch (e) {
+    console.warn('Failed to load from localStorage', e);
+  }
+}
+loadFromLocalStorage();
+
+// ── Background Stars (cosmetic) ───────────────────────
+function addBackgroundStars() {
+  const count = 2000;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(count * 3);
+  for (let i = 0; i < count * 3; i++) {
+    positions[i] = (Math.random() - 0.5) * 6000 + UNIVERSE_SIZE / 2;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.PointsMaterial({ color: 0x334466, size: 2, transparent: true, opacity: 0.6 });
+  scene.add(new THREE.Points(geo, mat));
+}
+addBackgroundStars();
+
+// ── Animation Loop ────────────────────────────────────
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// ── Resize Handler ────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+</script>
+</body>
+</html>
