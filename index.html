@@ -428,7 +428,7 @@ import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 
 // ── Constants ─────────────────────────────────────────
 const UNIVERSE_SIZE = 1000; // light years per axis
-const PX_PER_LY = 10;      // 1 light year = 10 pixels/units in 3D space
+const PX_PER_LY = 75;      // 1 light year = 75 pixels/units in 3D space
 const WORLD_SIZE = UNIVERSE_SIZE * PX_PER_LY; // 10000 units total
 const ZONE_PADDING = 1;    // light years around each star in a zone
 
@@ -442,6 +442,11 @@ const ZONE_COLORS = {
 
 // Helper: convert light-year coords to world (pixel) coords
 function lyToWorld(v) { return v * PX_PER_LY; }
+
+// Screen-space sizing for stars and labels (in pixels on screen)
+const STAR_SCREEN_SIZE = 16;   // star sprite diameter in screen pixels
+const LABEL_SCREEN_WIDTH = 120; // name label width in screen pixels
+const LABEL_SCREEN_HEIGHT = 30; // name label height in screen pixels
 
 // ── State ─────────────────────────────────────────────
 let stars = [];       // { id, name, x, y, z, zoneId } — coords in light years
@@ -457,7 +462,7 @@ let measureLabel = null;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x020408);
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 50000);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 10, 500000);
 camera.position.set(lyToWorld(1400), lyToWorld(1000), lyToWorld(1400));
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -469,7 +474,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE / 2);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.minDistance = lyToWorld(50);
+controls.minDistance = lyToWorld(2);
 controls.maxDistance = lyToWorld(3500);
 // Swap: right-click = rotate, middle-click = pan
 controls.mouseButtons = {
@@ -610,7 +615,7 @@ function rebuildStarMeshes() {
     });
     const sprite = new THREE.Sprite(mat);
     sprite.position.set(wx, wy, wz);
-    sprite.scale.set(lyToWorld(24), lyToWorld(24), 1);
+    sprite.scale.set(1, 1, 1); // dynamically sized in animate()
     sprite.userData.starId = star.id;
     starGroup.add(sprite);
 
@@ -626,8 +631,8 @@ function rebuildStarMeshes() {
     const tex = new THREE.CanvasTexture(canvas);
     const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
     const label = new THREE.Sprite(labelMat);
-    label.position.set(wx, wy + lyToWorld(20), wz);
-    label.scale.set(lyToWorld(100), lyToWorld(25), 1);
+    label.position.set(wx, wy, wz); // offset applied dynamically in animate()
+    label.scale.set(1, 1, 1); // dynamically sized in animate()
     label.userData.starId = star.id;
     nameSprites.add(label);
   }
@@ -856,13 +861,15 @@ function drawMeasureLine(s1, s2) {
 
 // ── Raycasting ───────────────────────────────────────
 const raycaster = new THREE.Raycaster();
-raycaster.params.Sprite = { threshold: lyToWorld(15) };
 const mouse = new THREE.Vector2();
 let hoveredStar = null;
 
 function getIntersectedStar(event) {
   mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
   mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  // Dynamic threshold based on current camera distance to scene center
+  const camDist = camera.position.distanceTo(controls.target);
+  raycaster.params.Sprite = { threshold: screenToWorld(STAR_SCREEN_SIZE * 0.75, camDist) };
   raycaster.setFromCamera(mouse, camera);
   const hits = raycaster.intersectObjects(starGroup.children);
   if (hits.length > 0) {
@@ -1243,9 +1250,38 @@ function addBackgroundStars() {
 addBackgroundStars();
 
 // ── Animation Loop ───────────────────────────────────
+// Convert a screen-pixel size to world units at a given distance from camera
+function screenToWorld(screenPx, distance) {
+  const vFov = camera.fov * Math.PI / 180;
+  const worldPerPx = (2 * distance * Math.tan(vFov / 2)) / renderer.domElement.clientHeight;
+  return screenPx * worldPerPx;
+}
+
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
+
+  // Dynamically size star sprites and name labels relative to viewport
+  for (let i = 0; i < starGroup.children.length; i++) {
+    const starSprite = starGroup.children[i];
+    const dist = camera.position.distanceTo(starSprite.position);
+    const s = screenToWorld(STAR_SCREEN_SIZE, dist);
+    starSprite.scale.set(s, s, 1);
+
+    const label = nameSprites.children[i];
+    if (label) {
+      const lw = screenToWorld(LABEL_SCREEN_WIDTH, dist);
+      const lh = screenToWorld(LABEL_SCREEN_HEIGHT, dist);
+      label.scale.set(lw, lh, 1);
+      // Position label just above the star sprite
+      label.position.set(
+        starSprite.position.x,
+        starSprite.position.y + s * 0.6 + lh * 0.5,
+        starSprite.position.z
+      );
+    }
+  }
+
   renderer.render(scene, camera);
 }
 animate();
