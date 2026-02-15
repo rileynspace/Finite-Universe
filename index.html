@@ -33,7 +33,8 @@
     margin-top: 8px;
   }
   .panel input[type="text"],
-  .panel input[type="number"] {
+  .panel input[type="number"],
+  .panel select {
     width: 100%;
     padding: 6px 8px;
     background: rgba(20, 30, 60, 0.8);
@@ -43,7 +44,9 @@
     font-size: 13px;
     outline: none;
   }
-  .panel input:focus {
+  .panel select { cursor: pointer; }
+  .panel select option { background: #0a0f1e; color: #ddeeff; }
+  .panel input:focus, .panel select:focus {
     border-color: rgba(100, 140, 255, 0.6);
   }
   .btn {
@@ -93,6 +96,52 @@
   }
   #distance-result.visible { display: block; }
 
+  /* Zones Panel */
+  #zones-panel {
+    top: 340px;
+    right: 16px;
+    width: 240px;
+    max-height: 350px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  #zone-list {
+    overflow-y: auto;
+    flex: 1;
+    max-height: 180px;
+  }
+  .zone-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: default;
+    transition: background 0.15s;
+  }
+  .zone-entry:hover { background: rgba(60, 100, 220, 0.15); }
+  .zone-entry .zone-color-dot {
+    display: inline-block;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+  .zone-entry .zone-name { color: #ddeeff; }
+  .zone-entry .zone-star-count { color: #667799; font-size: 11px; margin-left: 6px; }
+  .zone-entry .delete-zone {
+    color: #ff6666;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .zone-entry:hover .delete-zone { opacity: 1; }
+
   /* Star Info Tooltip */
   #star-tooltip {
     position: absolute;
@@ -104,6 +153,7 @@
     pointer-events: none;
     font-size: 13px;
     max-width: 250px;
+    z-index: 100;
   }
   #star-tooltip .star-name {
     color: #7ab4ff;
@@ -112,13 +162,14 @@
     margin-bottom: 4px;
   }
   #star-tooltip .star-coords { color: #88aacc; }
+  #star-tooltip .star-zone { color: #99aa77; font-size: 12px; margin-top: 2px; }
 
   /* Star List */
   #star-list-panel {
     position: absolute;
     bottom: 16px;
     left: 16px;
-    width: 260px;
+    width: 280px;
     max-height: 250px;
     background: rgba(10, 15, 30, 0.92);
     border: 1px solid rgba(100, 140, 255, 0.3);
@@ -155,6 +206,13 @@
   .star-entry.selected { background: rgba(60, 100, 220, 0.35); }
   .star-entry .name { color: #ddeeff; }
   .star-entry .coords { color: #667799; font-size: 11px; }
+  .star-entry .star-zone-tag {
+    font-size: 10px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: #fff;
+    opacity: 0.7;
+  }
   .star-entry .delete-star {
     color: #ff6666;
     cursor: pointer;
@@ -164,6 +222,61 @@
     transition: opacity 0.15s;
   }
   .star-entry:hover .delete-star { opacity: 1; }
+
+  /* Edit Star Modal */
+  #edit-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+  }
+  #edit-overlay.visible { display: flex; }
+  #edit-modal {
+    background: rgba(10, 15, 30, 0.97);
+    border: 1px solid rgba(100, 140, 255, 0.4);
+    border-radius: 10px;
+    padding: 24px;
+    width: 280px;
+    backdrop-filter: blur(10px);
+  }
+  #edit-modal h3 {
+    color: #7ab4ff;
+    margin-bottom: 12px;
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  #edit-modal label {
+    display: block;
+    font-size: 12px;
+    color: #8899bb;
+    margin-bottom: 3px;
+    margin-top: 10px;
+  }
+  #edit-modal input[type="text"],
+  #edit-modal input[type="number"],
+  #edit-modal select {
+    width: 100%;
+    padding: 7px 9px;
+    background: rgba(20, 30, 60, 0.8);
+    border: 1px solid rgba(100, 140, 255, 0.25);
+    border-radius: 4px;
+    color: #ddeeff;
+    font-size: 13px;
+    outline: none;
+  }
+  #edit-modal select { cursor: pointer; }
+  #edit-modal select option { background: #0a0f1e; color: #ddeeff; }
+  #edit-modal input:focus, #edit-modal select:focus {
+    border-color: rgba(100, 140, 255, 0.6);
+  }
+  #edit-modal .edit-coord-row { display: flex; gap: 6px; }
+  #edit-modal .edit-coord-row > div { flex: 1; }
+  #edit-modal .btn-row { margin-top: 16px; display: flex; gap: 8px; }
+  #edit-modal .btn-row .btn { flex: 1; text-align: center; }
 
   /* File input hidden */
   #file-input { display: none; }
@@ -204,6 +317,8 @@
       <input type="number" id="star-z" placeholder="0" min="0" max="1000" step="any">
     </div>
   </div>
+  <label for="star-zone">Zone (optional)</label>
+  <select id="star-zone"><option value="">None</option></select>
   <button class="btn" id="btn-add-star">Add Star</button>
 </div>
 
@@ -226,10 +341,29 @@
   <input type="file" id="file-input" accept=".json">
 </div>
 
+<!-- Zones Panel -->
+<div id="zones-panel" class="panel">
+  <h3>Zones</h3>
+  <label for="zone-name">Name</label>
+  <input type="text" id="zone-name" placeholder="e.g. Federation Space">
+  <label for="zone-color">Color</label>
+  <select id="zone-color">
+    <option value="red">Red</option>
+    <option value="blue">Blue</option>
+    <option value="yellow">Yellow</option>
+    <option value="green">Green</option>
+    <option value="gray">Gray</option>
+  </select>
+  <button class="btn" id="btn-add-zone">Add Zone</button>
+  <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
+  <div id="zone-list"></div>
+</div>
+
 <!-- Star Tooltip -->
 <div id="star-tooltip">
   <div class="star-name" id="tooltip-name"></div>
   <div class="star-coords" id="tooltip-coords"></div>
+  <div class="star-zone" id="tooltip-zone"></div>
 </div>
 
 <!-- Star List -->
@@ -238,13 +372,44 @@
   <div id="star-list"></div>
 </div>
 
+<!-- Edit Star Modal -->
+<div id="edit-overlay">
+  <div id="edit-modal">
+    <h3>Edit Star</h3>
+    <input type="hidden" id="edit-star-id">
+    <label for="edit-star-name">Name</label>
+    <input type="text" id="edit-star-name">
+    <div class="edit-coord-row">
+      <div>
+        <label for="edit-star-x">X (ly)</label>
+        <input type="number" id="edit-star-x" min="0" max="1000" step="any">
+      </div>
+      <div>
+        <label for="edit-star-y">Y (ly)</label>
+        <input type="number" id="edit-star-y" min="0" max="1000" step="any">
+      </div>
+      <div>
+        <label for="edit-star-z">Z (ly)</label>
+        <input type="number" id="edit-star-z" min="0" max="1000" step="any">
+      </div>
+    </div>
+    <label for="edit-star-zone">Zone</label>
+    <select id="edit-star-zone"><option value="">None</option></select>
+    <div class="btn-row">
+      <button class="btn" id="btn-edit-save">Save</button>
+      <button class="btn" id="btn-edit-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
 <!-- Instructions -->
 <div id="instructions">
   <strong style="color:#7ab4ff;">Controls</strong><br>
-  Left-click + drag: Rotate<br>
-  Right-click + drag: Pan<br>
+  Right-click + drag: Rotate<br>
+  Middle-click + drag: Pan<br>
   Scroll: Zoom<br>
-  Click star: Select / Info
+  Click star: Select / Info<br>
+  Double-click star: Edit
 </div>
 
 <script type="importmap">
@@ -259,22 +424,41 @@
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { ConvexGeometry } from 'three/addons/geometries/ConvexGeometry.js';
 
-// ── State ──────────────────────────────────────────────
+// ── Constants ─────────────────────────────────────────
 const UNIVERSE_SIZE = 1000; // light years per axis
-let stars = [];       // { id, name, x, y, z }
-let nextId = 1;
+const PX_PER_LY = 10;      // 1 light year = 10 pixels/units in 3D space
+const WORLD_SIZE = UNIVERSE_SIZE * PX_PER_LY; // 10000 units total
+const ZONE_PADDING = 1;    // light years around each star in a zone
+
+const ZONE_COLORS = {
+  red:    { hex: 0xff4444, css: '#ff4444' },
+  blue:   { hex: 0x4488ff, css: '#4488ff' },
+  yellow: { hex: 0xffcc44, css: '#ffcc44' },
+  green:  { hex: 0x44cc66, css: '#44cc66' },
+  gray:   { hex: 0x999999, css: '#999999' },
+};
+
+// Helper: convert light-year coords to world (pixel) coords
+function lyToWorld(v) { return v * PX_PER_LY; }
+
+// ── State ─────────────────────────────────────────────
+let stars = [];       // { id, name, x, y, z, zoneId } — coords in light years
+let zones = [];       // { id, name, color, starIds[] }
+let nextStarId = 1;
+let nextZoneId = 1;
 let measureMode = false;
-let measureSelection = []; // up to 2 star ids
+let measureSelection = [];
 let measureLine = null;
 let measureLabel = null;
 
-// ── Three.js Setup ─────────────────────────────────────
+// ── Three.js Setup ────────────────────────────────────
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x020408);
 
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 5000);
-camera.position.set(1400, 1000, 1400);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 50000);
+camera.position.set(lyToWorld(1400), lyToWorld(1000), lyToWorld(1400));
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -282,19 +466,27 @@ renderer.setPixelRatio(window.devicePixelRatio);
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(UNIVERSE_SIZE / 2, UNIVERSE_SIZE / 2, UNIVERSE_SIZE / 2);
+controls.target.set(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE / 2);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.minDistance = 50;
-controls.maxDistance = 3500;
+controls.minDistance = lyToWorld(50);
+controls.maxDistance = lyToWorld(3500);
+// Swap: right-click = rotate, middle-click = pan
+controls.mouseButtons = {
+  LEFT: null,
+  MIDDLE: THREE.MOUSE.PAN,
+  RIGHT: THREE.MOUSE.ROTATE
+};
 controls.update();
 
-// ── Ambient light ──────────────────────────────────────
+renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// ── Ambient light ─────────────────────────────────────
 scene.add(new THREE.AmbientLight(0xffffff, 0.5));
 
-// ── Grid / Bounding Box ───────────────────────────────
+// ── Grid / Bounding Box ──────────────────────────────
 function buildBoundingBox() {
-  const S = UNIVERSE_SIZE;
+  const S = WORLD_SIZE;
   const geo = new THREE.BufferGeometry();
   const vertices = new Float32Array([
     0,0,0, S,0,0,  S,0,0, S,S,0,  S,S,0, 0,S,0,  0,S,0, 0,0,0,
@@ -307,9 +499,9 @@ function buildBoundingBox() {
 }
 buildBoundingBox();
 
-// ── Grid lines on the floor (Y=0 plane) ──────────────
+// ── Floor Grid ────────────────────────────────────────
 function buildFloorGrid() {
-  const S = UNIVERSE_SIZE;
+  const S = WORLD_SIZE;
   const divisions = 10;
   const step = S / divisions;
   const geo = new THREE.BufferGeometry();
@@ -325,7 +517,7 @@ function buildFloorGrid() {
 }
 buildFloorGrid();
 
-// ── Axis Labels ───────────────────────────────────────
+// ── Axis Labels ──────────────────────────────────────
 function makeTextSprite(text, position, color = '#7ab4ff') {
   const canvas = document.createElement('canvas');
   const size = 256;
@@ -341,28 +533,29 @@ function makeTextSprite(text, position, color = '#7ab4ff') {
   const mat = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
   const sprite = new THREE.Sprite(mat);
   sprite.position.copy(position);
-  sprite.scale.set(80, 80, 1);
+  sprite.scale.set(lyToWorld(80), lyToWorld(80), 1);
   sprite.userData.isLabel = true;
   scene.add(sprite);
   return sprite;
 }
 
-// Axis tick labels
-const S = UNIVERSE_SIZE;
-for (let i = 0; i <= S; i += 200) {
+// Tick labels every 200 ly
+for (let i = 0; i <= UNIVERSE_SIZE; i += 200) {
   if (i > 0) {
-    makeTextSprite(`${i}`, new THREE.Vector3(i, -30, 0), '#446688');
-    makeTextSprite(`${i}`, new THREE.Vector3(0, i, -30), '#446688');
-    makeTextSprite(`${i}`, new THREE.Vector3(-30, 0, i), '#446688');
+    const w = lyToWorld(i);
+    const off = lyToWorld(-30);
+    makeTextSprite(`${i}`, new THREE.Vector3(w, off, 0), '#446688');
+    makeTextSprite(`${i}`, new THREE.Vector3(0, w, off), '#446688');
+    makeTextSprite(`${i}`, new THREE.Vector3(off, 0, w), '#446688');
   }
 }
-makeTextSprite('X (ly)', new THREE.Vector3(S / 2, -60, 0), '#ff6666');
-makeTextSprite('Y (ly)', new THREE.Vector3(-60, S / 2, 0), '#66ff66');
-makeTextSprite('Z (ly)', new THREE.Vector3(0, -60, S / 2), '#6688ff');
+const axisLabelOff = lyToWorld(-60);
+makeTextSprite('X (ly)', new THREE.Vector3(WORLD_SIZE / 2, axisLabelOff, 0), '#ff6666');
+makeTextSprite('Y (ly)', new THREE.Vector3(axisLabelOff, WORLD_SIZE / 2, 0), '#66ff66');
+makeTextSprite('Z (ly)', new THREE.Vector3(0, axisLabelOff, WORLD_SIZE / 2), '#6688ff');
 
-// Colored axis lines
 function buildAxisLines() {
-  const len = UNIVERSE_SIZE + 40;
+  const len = WORLD_SIZE + lyToWorld(40);
   const axisData = [
     { dir: [len, 0, 0], color: 0xff4444 },
     { dir: [0, len, 0], color: 0x44ff44 },
@@ -377,13 +570,14 @@ function buildAxisLines() {
 }
 buildAxisLines();
 
-// ── Star Rendering ────────────────────────────────────
+// ── Star Rendering ───────────────────────────────────
 const starGroup = new THREE.Group();
 scene.add(starGroup);
 const nameSprites = new THREE.Group();
 scene.add(nameSprites);
+const zoneGroup = new THREE.Group();
+scene.add(zoneGroup);
 
-// Star point texture
 function createStarTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
@@ -401,12 +595,12 @@ function createStarTexture() {
 const starTexture = createStarTexture();
 
 function rebuildStarMeshes() {
-  // Clear
   while (starGroup.children.length) starGroup.remove(starGroup.children[0]);
   while (nameSprites.children.length) nameSprites.remove(nameSprites.children[0]);
 
   for (const star of stars) {
-    // Star point sprite
+    const wx = lyToWorld(star.x), wy = lyToWorld(star.y), wz = lyToWorld(star.z);
+
     const mat = new THREE.SpriteMaterial({
       map: starTexture,
       color: 0xffffff,
@@ -415,12 +609,11 @@ function rebuildStarMeshes() {
       depthTest: false,
     });
     const sprite = new THREE.Sprite(mat);
-    sprite.position.set(star.x, star.y, star.z);
-    sprite.scale.set(24, 24, 1);
+    sprite.position.set(wx, wy, wz);
+    sprite.scale.set(lyToWorld(24), lyToWorld(24), 1);
     sprite.userData.starId = star.id;
     starGroup.add(sprite);
 
-    // Name label
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 128;
@@ -433,33 +626,188 @@ function rebuildStarMeshes() {
     const tex = new THREE.CanvasTexture(canvas);
     const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
     const label = new THREE.Sprite(labelMat);
-    label.position.set(star.x, star.y + 20, star.z);
-    label.scale.set(100, 25, 1);
+    label.position.set(wx, wy + lyToWorld(20), wz);
+    label.scale.set(lyToWorld(100), lyToWorld(25), 1);
     label.userData.starId = star.id;
     nameSprites.add(label);
   }
 }
 
-// ── Star CRUD ─────────────────────────────────────────
-function addStar(name, x, y, z) {
-  const star = { id: nextId++, name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z) };
+// ── Zone Rendering ───────────────────────────────────
+function rebuildZoneMeshes() {
+  while (zoneGroup.children.length) zoneGroup.remove(zoneGroup.children[0]);
+
+  for (const zone of zones) {
+    const zoneStars = stars.filter(st => zone.starIds.includes(st.id));
+    if (zoneStars.length === 0) continue;
+
+    const colorInfo = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
+    const padWorld = lyToWorld(ZONE_PADDING);
+
+    if (zoneStars.length === 1) {
+      const geo = new THREE.SphereGeometry(padWorld, 16, 12);
+      const mat = new THREE.MeshBasicMaterial({
+        color: colorInfo.hex, transparent: true, opacity: 0.18,
+        depthWrite: false, side: THREE.DoubleSide
+      });
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(lyToWorld(zoneStars[0].x), lyToWorld(zoneStars[0].y), lyToWorld(zoneStars[0].z));
+      zoneGroup.add(mesh);
+
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: colorInfo.hex, transparent: true, opacity: 0.3, wireframe: true
+      });
+      const wireMesh = new THREE.Mesh(geo.clone(), wireMat);
+      wireMesh.position.copy(mesh.position);
+      zoneGroup.add(wireMesh);
+    } else {
+      const points = [];
+      const icoGeo = new THREE.IcosahedronGeometry(padWorld, 1);
+      const icoPos = icoGeo.getAttribute('position');
+
+      for (const st of zoneStars) {
+        const wx = lyToWorld(st.x), wy = lyToWorld(st.y), wz = lyToWorld(st.z);
+        for (let i = 0; i < icoPos.count; i++) {
+          points.push(new THREE.Vector3(
+            wx + icoPos.getX(i),
+            wy + icoPos.getY(i),
+            wz + icoPos.getZ(i)
+          ));
+        }
+      }
+
+      try {
+        const hullGeo = new ConvexGeometry(points);
+        const mat = new THREE.MeshBasicMaterial({
+          color: colorInfo.hex, transparent: true, opacity: 0.15,
+          depthWrite: false, side: THREE.DoubleSide
+        });
+        zoneGroup.add(new THREE.Mesh(hullGeo, mat));
+
+        const edgeGeo = new THREE.EdgesGeometry(hullGeo);
+        const edgeMat = new THREE.LineBasicMaterial({
+          color: colorInfo.hex, transparent: true, opacity: 0.3
+        });
+        zoneGroup.add(new THREE.LineSegments(edgeGeo, edgeMat));
+      } catch (e) {
+        for (const st of zoneStars) {
+          const geo = new THREE.SphereGeometry(padWorld, 12, 8);
+          const mat = new THREE.MeshBasicMaterial({
+            color: colorInfo.hex, transparent: true, opacity: 0.18,
+            depthWrite: false, side: THREE.DoubleSide
+          });
+          const mesh = new THREE.Mesh(geo, mat);
+          mesh.position.set(lyToWorld(st.x), lyToWorld(st.y), lyToWorld(st.z));
+          zoneGroup.add(mesh);
+        }
+      }
+    }
+
+    // Zone name label at centroid
+    const cx = zoneStars.reduce((a, s) => a + s.x, 0) / zoneStars.length;
+    const cy = zoneStars.reduce((a, s) => a + s.y, 0) / zoneStars.length;
+    const cz = zoneStars.reduce((a, s) => a + s.z, 0) / zoneStars.length;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.font = 'Bold 32px Arial';
+    ctx.fillStyle = colorInfo.css;
+    ctx.globalAlpha = 0.7;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(zone.name, 256, 64);
+    const tex = new THREE.CanvasTexture(canvas);
+    const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const label = new THREE.Sprite(labelMat);
+    label.position.set(lyToWorld(cx), lyToWorld(cy) + lyToWorld(ZONE_PADDING + 30), lyToWorld(cz));
+    label.scale.set(lyToWorld(120), lyToWorld(30), 1);
+    zoneGroup.add(label);
+  }
+}
+
+// ── Star CRUD ────────────────────────────────────────
+function addStar(name, x, y, z, zoneId = null) {
+  const star = { id: nextStarId++, name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z), zoneId };
   stars.push(star);
+  if (zoneId) {
+    const zone = zones.find(z => z.id === zoneId);
+    if (zone && !zone.starIds.includes(star.id)) zone.starIds.push(star.id);
+  }
   rebuildStarMeshes();
+  rebuildZoneMeshes();
   updateStarList();
+  updateZoneList();
   saveToLocalStorage();
   return star;
 }
 
+function updateStar(id, name, x, y, z, zoneId) {
+  const star = stars.find(s => s.id === id);
+  if (!star) return;
+  const oldZoneId = star.zoneId;
+  star.name = name;
+  star.x = parseFloat(x);
+  star.y = parseFloat(y);
+  star.z = parseFloat(z);
+  star.zoneId = zoneId || null;
+
+  if (oldZoneId && oldZoneId !== zoneId) {
+    const oldZone = zones.find(z => z.id === oldZoneId);
+    if (oldZone) oldZone.starIds = oldZone.starIds.filter(sid => sid !== id);
+  }
+  if (zoneId) {
+    const newZone = zones.find(z => z.id === zoneId);
+    if (newZone && !newZone.starIds.includes(id)) newZone.starIds.push(id);
+  }
+
+  rebuildStarMeshes();
+  rebuildZoneMeshes();
+  updateStarList();
+  updateZoneList();
+  saveToLocalStorage();
+}
+
 function removeStar(id) {
+  const star = stars.find(s => s.id === id);
+  if (star && star.zoneId) {
+    const zone = zones.find(z => z.id === star.zoneId);
+    if (zone) zone.starIds = zone.starIds.filter(sid => sid !== id);
+  }
   stars = stars.filter(s => s.id !== id);
   measureSelection = measureSelection.filter(sid => sid !== id);
   clearMeasureLine();
   rebuildStarMeshes();
+  rebuildZoneMeshes();
+  updateStarList();
+  updateZoneList();
+  saveToLocalStorage();
+}
+
+// ── Zone CRUD ────────────────────────────────────────
+function addZone(name, color) {
+  const zone = { id: nextZoneId++, name, color, starIds: [] };
+  zones.push(zone);
+  updateZoneList();
+  updateZoneDropdowns();
+  saveToLocalStorage();
+  return zone;
+}
+
+function removeZone(id) {
+  for (const star of stars) {
+    if (star.zoneId === id) star.zoneId = null;
+  }
+  zones = zones.filter(z => z.id !== id);
+  rebuildZoneMeshes();
+  updateZoneList();
+  updateZoneDropdowns();
   updateStarList();
   saveToLocalStorage();
 }
 
-// ── Distance Measurement ──────────────────────────────
+// ── Distance Measurement ─────────────────────────────
 function clearMeasureLine() {
   if (measureLine) { scene.remove(measureLine); measureLine = null; }
   if (measureLabel) { scene.remove(measureLabel); measureLabel = null; }
@@ -470,18 +818,20 @@ function drawMeasureLine(s1, s2) {
   clearMeasureLine();
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-    s1.x, s1.y, s1.z, s2.x, s2.y, s2.z
+    lyToWorld(s1.x), lyToWorld(s1.y), lyToWorld(s1.z),
+    lyToWorld(s2.x), lyToWorld(s2.y), lyToWorld(s2.z)
   ]), 3));
   const mat = new THREE.LineBasicMaterial({ color: 0xffcc44, linewidth: 2, transparent: true, opacity: 0.8 });
   measureLine = new THREE.LineSegments(geo, mat);
   scene.add(measureLine);
 
-  // Distance
+  // Distance in light years
   const dx = s2.x - s1.x, dy = s2.y - s1.y, dz = s2.z - s1.z;
   const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-  // Midpoint label
-  const mx = (s1.x + s2.x) / 2, my = (s1.y + s2.y) / 2 + 20, mz = (s1.z + s2.z) / 2;
+  const mx = lyToWorld((s1.x + s2.x) / 2);
+  const my = lyToWorld((s1.y + s2.y) / 2) + lyToWorld(20);
+  const mz = lyToWorld((s1.z + s2.z) / 2);
   const canvas = document.createElement('canvas');
   canvas.width = 512;
   canvas.height = 128;
@@ -495,19 +845,18 @@ function drawMeasureLine(s1, s2) {
   const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
   measureLabel = new THREE.Sprite(labelMat);
   measureLabel.position.set(mx, my, mz);
-  measureLabel.scale.set(120, 30, 1);
+  measureLabel.scale.set(lyToWorld(120), lyToWorld(30), 1);
   scene.add(measureLabel);
 
-  // UI result
   const resultEl = document.getElementById('distance-result');
   const textEl = document.getElementById('distance-text');
-  textEl.innerHTML = `<strong>${s1.name}</strong> → <strong>${s2.name}</strong><br>${dist.toFixed(2)} light years`;
+  textEl.innerHTML = `<strong>${s1.name}</strong> &rarr; <strong>${s2.name}</strong><br>${dist.toFixed(2)} light years`;
   resultEl.classList.add('visible');
 }
 
-// ── Raycasting (click/hover) ──────────────────────────
+// ── Raycasting ───────────────────────────────────────
 const raycaster = new THREE.Raycaster();
-raycaster.params.Sprite = { threshold: 15 };
+raycaster.params.Sprite = { threshold: lyToWorld(15) };
 const mouse = new THREE.Vector2();
 let hoveredStar = null;
 
@@ -527,6 +876,7 @@ function getIntersectedStar(event) {
 const tooltip = document.getElementById('star-tooltip');
 const tooltipName = document.getElementById('tooltip-name');
 const tooltipCoords = document.getElementById('tooltip-coords');
+const tooltipZone = document.getElementById('tooltip-zone');
 
 renderer.domElement.addEventListener('mousemove', (e) => {
   const star = getIntersectedStar(e);
@@ -534,6 +884,8 @@ renderer.domElement.addEventListener('mousemove', (e) => {
     hoveredStar = star;
     tooltipName.textContent = star.name;
     tooltipCoords.textContent = `(${star.x.toFixed(1)}, ${star.y.toFixed(1)}, ${star.z.toFixed(1)}) ly`;
+    const zone = star.zoneId ? zones.find(z => z.id === star.zoneId) : null;
+    tooltipZone.textContent = zone ? `Zone: ${zone.name}` : '';
     tooltip.style.display = 'block';
     tooltip.style.left = (e.clientX + 16) + 'px';
     tooltip.style.top = (e.clientY - 10) + 'px';
@@ -545,12 +897,12 @@ renderer.domElement.addEventListener('mousemove', (e) => {
   }
 });
 
+// Left-click: measure mode selection
 renderer.domElement.addEventListener('click', (e) => {
   const star = getIntersectedStar(e);
   if (!star) return;
 
   if (measureMode) {
-    // Add to selection
     if (measureSelection.includes(star.id)) return;
     measureSelection.push(star.id);
     highlightStarInList(star.id);
@@ -565,7 +917,71 @@ renderer.domElement.addEventListener('click', (e) => {
   }
 });
 
-// ── Measure Mode Toggle ───────────────────────────────
+// Double-click: open edit modal
+renderer.domElement.addEventListener('dblclick', (e) => {
+  const star = getIntersectedStar(e);
+  if (!star) return;
+  openEditModal(star);
+});
+
+// ── Edit Modal ───────────────────────────────────────
+function openEditModal(star) {
+  document.getElementById('edit-star-id').value = star.id;
+  document.getElementById('edit-star-name').value = star.name;
+  document.getElementById('edit-star-x').value = star.x;
+  document.getElementById('edit-star-y').value = star.y;
+  document.getElementById('edit-star-z').value = star.z;
+
+  const sel = document.getElementById('edit-star-zone');
+  sel.innerHTML = '<option value="">None</option>';
+  for (const z of zones) {
+    const opt = document.createElement('option');
+    opt.value = z.id;
+    opt.textContent = `${z.name} (${z.color})`;
+    if (star.zoneId === z.id) opt.selected = true;
+    sel.appendChild(opt);
+  }
+
+  document.getElementById('edit-overlay').classList.add('visible');
+  document.getElementById('edit-star-name').focus();
+}
+
+function closeEditModal() {
+  document.getElementById('edit-overlay').classList.remove('visible');
+}
+
+document.getElementById('btn-edit-save').addEventListener('click', () => {
+  const id = parseInt(document.getElementById('edit-star-id').value);
+  const name = document.getElementById('edit-star-name').value.trim();
+  const x = document.getElementById('edit-star-x').value;
+  const y = document.getElementById('edit-star-y').value;
+  const z = document.getElementById('edit-star-z').value;
+  const zoneVal = document.getElementById('edit-star-zone').value;
+  const zoneId = zoneVal ? parseInt(zoneVal) : null;
+
+  if (!name) { alert('Please enter a star name.'); return; }
+  if (x === '' || y === '' || z === '') { alert('Please enter all coordinates.'); return; }
+  const xn = parseFloat(x), yn = parseFloat(y), zn = parseFloat(z);
+  if ([xn, yn, zn].some(v => isNaN(v) || v < 0 || v > UNIVERSE_SIZE)) {
+    alert(`Coordinates must be between 0 and ${UNIVERSE_SIZE}.`);
+    return;
+  }
+
+  updateStar(id, name, xn, yn, zn, zoneId);
+  closeEditModal();
+});
+
+document.getElementById('btn-edit-cancel').addEventListener('click', closeEditModal);
+
+document.getElementById('edit-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('edit-overlay')) closeEditModal();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeEditModal();
+});
+
+// ── Measure Mode ─────────────────────────────────────
 function setMeasureMode(on) {
   measureMode = on;
   measureSelection = [];
@@ -585,12 +1001,15 @@ document.getElementById('btn-cancel-measure').addEventListener('click', () => {
   clearMeasureLine();
 });
 
-// ── Add Star Button ───────────────────────────────────
+// ── Add Star Button ──────────────────────────────────
 document.getElementById('btn-add-star').addEventListener('click', () => {
   const name = document.getElementById('star-name').value.trim();
   const x = document.getElementById('star-x').value;
   const y = document.getElementById('star-y').value;
   const z = document.getElementById('star-z').value;
+  const zoneVal = document.getElementById('star-zone').value;
+  const zoneId = zoneVal ? parseInt(zoneVal) : null;
+
   if (!name) { alert('Please enter a star name.'); return; }
   if (x === '' || y === '' || z === '') { alert('Please enter all coordinates.'); return; }
   const xn = parseFloat(x), yn = parseFloat(y), zn = parseFloat(z);
@@ -598,33 +1017,50 @@ document.getElementById('btn-add-star').addEventListener('click', () => {
     alert(`Coordinates must be between 0 and ${UNIVERSE_SIZE}.`);
     return;
   }
-  addStar(name, xn, yn, zn);
+  addStar(name, xn, yn, zn, zoneId);
   document.getElementById('star-name').value = '';
   document.getElementById('star-x').value = '';
   document.getElementById('star-y').value = '';
   document.getElementById('star-z').value = '';
+  document.getElementById('star-zone').value = '';
 });
 
-// ── Star List UI ──────────────────────────────────────
+// ── Add Zone Button ──────────────────────────────────
+document.getElementById('btn-add-zone').addEventListener('click', () => {
+  const name = document.getElementById('zone-name').value.trim();
+  const color = document.getElementById('zone-color').value;
+  if (!name) { alert('Please enter a zone name.'); return; }
+  addZone(name, color);
+  document.getElementById('zone-name').value = '';
+});
+
+// ── Star List UI ─────────────────────────────────────
 function updateStarList() {
   const listEl = document.getElementById('star-list');
   const countEl = document.getElementById('star-count');
   countEl.textContent = stars.length;
   listEl.innerHTML = '';
   for (const star of stars) {
+    const zone = star.zoneId ? zones.find(z => z.id === star.zoneId) : null;
     const entry = document.createElement('div');
     entry.className = 'star-entry';
     entry.dataset.id = star.id;
+
+    let zoneTag = '';
+    if (zone) {
+      const c = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
+      zoneTag = `<span class="star-zone-tag" style="background:${c.css}">${zone.name}</span>`;
+    }
+
     entry.innerHTML = `
       <div>
-        <span class="name">${star.name}</span><br>
+        <span class="name">${star.name}</span> ${zoneTag}<br>
         <span class="coords">(${star.x.toFixed(1)}, ${star.y.toFixed(1)}, ${star.z.toFixed(1)}) ly</span>
       </div>
       <span class="delete-star" title="Delete star">&times;</span>
     `;
-    // Click to fly camera to star
     entry.querySelector('.name').addEventListener('click', () => {
-      controls.target.set(star.x, star.y, star.z);
+      controls.target.set(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
     });
     entry.querySelector('.delete-star').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -640,14 +1076,50 @@ function highlightStarInList(id) {
   });
 }
 
-// ── Export / Import ───────────────────────────────────
+// ── Zone List UI ─────────────────────────────────────
+function updateZoneList() {
+  const listEl = document.getElementById('zone-list');
+  listEl.innerHTML = '';
+  for (const zone of zones) {
+    const colorInfo = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
+    const starCount = zone.starIds.length;
+    const entry = document.createElement('div');
+    entry.className = 'zone-entry';
+    entry.innerHTML = `
+      <div>
+        <span class="zone-color-dot" style="background:${colorInfo.css}"></span>
+        <span class="zone-name">${zone.name}</span>
+        <span class="zone-star-count">(${starCount} star${starCount !== 1 ? 's' : ''})</span>
+      </div>
+      <span class="delete-zone" title="Delete zone">&times;</span>
+    `;
+    entry.querySelector('.delete-zone').addEventListener('click', () => removeZone(zone.id));
+    listEl.appendChild(entry);
+  }
+}
+
+// ── Zone Dropdowns ───────────────────────────────────
+function updateZoneDropdowns() {
+  const addSel = document.getElementById('star-zone');
+  const currentVal = addSel.value;
+  addSel.innerHTML = '<option value="">None</option>';
+  for (const z of zones) {
+    const opt = document.createElement('option');
+    opt.value = z.id;
+    opt.textContent = `${z.name} (${z.color})`;
+    addSel.appendChild(opt);
+  }
+  addSel.value = currentVal;
+}
+
+// ── Export / Import ──────────────────────────────────
 document.getElementById('btn-export').addEventListener('click', () => {
-  const data = JSON.stringify(stars, null, 2);
+  const data = JSON.stringify({ stars, zones }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'universe-stars.json';
+  a.download = 'universe-map.json';
   a.click();
   URL.revokeObjectURL(url);
 });
@@ -663,10 +1135,38 @@ document.getElementById('file-input').addEventListener('change', (e) => {
   reader.onload = (ev) => {
     try {
       const imported = JSON.parse(ev.target.result);
-      if (!Array.isArray(imported)) throw new Error('Expected an array');
-      for (const s of imported) {
-        if (s.name && s.x !== undefined && s.y !== undefined && s.z !== undefined) {
-          addStar(s.name, s.x, s.y, s.z);
+
+      if (Array.isArray(imported)) {
+        for (const s of imported) {
+          if (s.name && s.x !== undefined && s.y !== undefined && s.z !== undefined) {
+            addStar(s.name, s.x, s.y, s.z);
+          }
+        }
+      } else if (imported.stars) {
+        if (imported.zones && Array.isArray(imported.zones)) {
+          for (const z of imported.zones) {
+            if (z.name && z.color) {
+              const newZone = addZone(z.name, z.color);
+              newZone._oldId = z.id;
+              newZone._oldStarIds = z.starIds || [];
+            }
+          }
+        }
+        if (Array.isArray(imported.stars)) {
+          for (const s of imported.stars) {
+            if (s.name && s.x !== undefined && s.y !== undefined && s.z !== undefined) {
+              let zoneId = null;
+              if (s.zoneId) {
+                const matchZone = zones.find(z => z._oldId === s.zoneId);
+                if (matchZone) zoneId = matchZone.id;
+              }
+              addStar(s.name, s.x, s.y, s.z, zoneId);
+            }
+          }
+        }
+        for (const z of zones) {
+          delete z._oldId;
+          delete z._oldStarIds;
         }
       }
     } catch (err) {
@@ -678,45 +1178,63 @@ document.getElementById('file-input').addEventListener('change', (e) => {
 });
 
 document.getElementById('btn-clear-all').addEventListener('click', () => {
-  if (!confirm('Delete all stars?')) return;
+  if (!confirm('Delete all stars and zones?')) return;
   stars = [];
-  nextId = 1;
+  zones = [];
+  nextStarId = 1;
+  nextZoneId = 1;
   measureSelection = [];
   clearMeasureLine();
   rebuildStarMeshes();
+  rebuildZoneMeshes();
   updateStarList();
+  updateZoneList();
+  updateZoneDropdowns();
   saveToLocalStorage();
 });
 
-// ── LocalStorage ──────────────────────────────────────
+// ── LocalStorage ─────────────────────────────────────
 function saveToLocalStorage() {
   localStorage.setItem('universe-map-stars', JSON.stringify(stars));
-  localStorage.setItem('universe-map-nextId', nextId);
+  localStorage.setItem('universe-map-zones', JSON.stringify(zones));
+  localStorage.setItem('universe-map-nextStarId', nextStarId);
+  localStorage.setItem('universe-map-nextZoneId', nextZoneId);
 }
 
 function loadFromLocalStorage() {
   try {
-    const data = localStorage.getItem('universe-map-stars');
-    const nid = localStorage.getItem('universe-map-nextId');
-    if (data) {
-      stars = JSON.parse(data);
-      nextId = nid ? parseInt(nid) : (stars.length ? Math.max(...stars.map(s => s.id)) + 1 : 1);
-      rebuildStarMeshes();
-      updateStarList();
+    const starData = localStorage.getItem('universe-map-stars');
+    const zoneData = localStorage.getItem('universe-map-zones');
+    const nsid = localStorage.getItem('universe-map-nextStarId');
+    const nzid = localStorage.getItem('universe-map-nextZoneId');
+
+    if (zoneData) {
+      zones = JSON.parse(zoneData);
+      nextZoneId = nzid ? parseInt(nzid) : (zones.length ? Math.max(...zones.map(z => z.id)) + 1 : 1);
     }
+    if (starData) {
+      stars = JSON.parse(starData);
+      nextStarId = nsid ? parseInt(nsid) : (stars.length ? Math.max(...stars.map(s => s.id)) + 1 : 1);
+    }
+
+    rebuildStarMeshes();
+    rebuildZoneMeshes();
+    updateStarList();
+    updateZoneList();
+    updateZoneDropdowns();
   } catch (e) {
     console.warn('Failed to load from localStorage', e);
   }
 }
 loadFromLocalStorage();
 
-// ── Background Stars (cosmetic) ───────────────────────
+// ── Background Stars (cosmetic) ──────────────────────
 function addBackgroundStars() {
   const count = 2000;
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(count * 3);
   for (let i = 0; i < count * 3; i++) {
-    positions[i] = (Math.random() - 0.5) * 6000 + UNIVERSE_SIZE / 2;
+    positions[i] = (Math.random() - 0.5) * lyToWorld(6000) + WORLD_SIZE / 2;
   }
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
   const mat = new THREE.PointsMaterial({ color: 0x334466, size: 2, transparent: true, opacity: 0.6 });
@@ -724,7 +1242,7 @@ function addBackgroundStars() {
 }
 addBackgroundStars();
 
-// ── Animation Loop ────────────────────────────────────
+// ── Animation Loop ───────────────────────────────────
 function animate() {
   requestAnimationFrame(animate);
   controls.update();
@@ -732,7 +1250,7 @@ function animate() {
 }
 animate();
 
-// ── Resize Handler ────────────────────────────────────
+// ── Resize Handler ───────────────────────────────────
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
