@@ -472,6 +472,8 @@ const STAR_MIN_WORLD = STAR_MIN_AU * LY_PER_AU * PX_PER_LY;
 const STAR_SCREEN_SIZE = 16;   // star sprite diameter in screen pixels
 const LABEL_SCREEN_WIDTH = 120; // name label width in screen pixels
 const LABEL_SCREEN_HEIGHT = 30; // name label height in screen pixels
+const ZONE_LABEL_SCREEN_WIDTH = 160;  // zone label width in screen pixels
+const ZONE_LABEL_SCREEN_HEIGHT = 40;  // zone label height in screen pixels
 
 // ── State ─────────────────────────────────────────────
 let stars = [];       // { id, name, x, y, z, zoneId } — coords in light years
@@ -751,8 +753,10 @@ function rebuildZoneMeshes() {
     const tex = new THREE.CanvasTexture(canvas);
     const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
     const label = new THREE.Sprite(labelMat);
-    label.position.set(lyToWorld(cx), lyToWorld(cy) + lyToWorld(ZONE_PADDING + 30), lyToWorld(cz));
-    label.scale.set(lyToWorld(120), lyToWorld(30), 1);
+    label.position.set(lyToWorld(cx), lyToWorld(cy), lyToWorld(cz));
+    label.scale.set(1, 1, 1); // dynamically sized in animate()
+    label.userData.isZoneLabel = true;
+    label.userData.anchorY = lyToWorld(cy);
     zoneGroup.add(label);
   }
 }
@@ -1323,6 +1327,17 @@ function animate() {
         starSprite.position.y + s * 0.6 + lh * 0.5,
         starSprite.position.z
       );
+    }
+  }
+
+  // Dynamically size zone labels
+  for (const child of zoneGroup.children) {
+    if (child.userData.isZoneLabel) {
+      const dist = camera.position.distanceTo(child.position);
+      const lw = screenToWorld(ZONE_LABEL_SCREEN_WIDTH, dist);
+      const lh = screenToWorld(ZONE_LABEL_SCREEN_HEIGHT, dist);
+      child.scale.set(lw, lh, 1);
+      child.position.y = child.userData.anchorY + lh * 0.8;
     }
   }
 
