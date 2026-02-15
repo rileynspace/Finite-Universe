@@ -1110,6 +1110,9 @@ function updateStarList() {
     entry.querySelector('.name').addEventListener('click', () => {
       controls.target.set(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
     });
+    entry.addEventListener('dblclick', () => {
+      openEditModal(star);
+    });
     entry.querySelector('.delete-star').addEventListener('click', (e) => {
       e.stopPropagation();
       removeStar(star.id);
