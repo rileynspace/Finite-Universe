@@ -325,6 +325,8 @@
 <!-- Tools Panel -->
 <div id="tools-panel" class="panel">
   <h3>Tools</h3>
+  <button class="btn" id="btn-unit-toggle">Units: ly</button>
+  <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:10px 0 8px;">
   <button class="btn" id="btn-measure">Measure Distance</button>
   <button class="btn" id="btn-cancel-measure" style="display:none;">Cancel</button>
   <div id="measure-instructions" style="display:none; margin-top:8px; font-size:12px; color:#88aacc;">
@@ -442,6 +444,29 @@ const ZONE_COLORS = {
 
 // Helper: convert light-year coords to world (pixel) coords
 function lyToWorld(v) { return v * PX_PER_LY; }
+
+// Unit system
+const LY_PER_AU = 0.00001581251; // 1 AU in light years
+const AU_PER_LY = 1 / LY_PER_AU; // ~63,241.077 AU per light year
+let displayUnit = 'ly'; // 'ly' or 'au'
+
+function formatCoord(lyValue) {
+  if (displayUnit === 'au') return (lyValue * AU_PER_LY).toFixed(1);
+  return lyValue.toFixed(1);
+}
+
+function formatDist(lyValue) {
+  if (displayUnit === 'au') return (lyValue * AU_PER_LY).toFixed(2);
+  return lyValue.toFixed(2);
+}
+
+function unitLabel() {
+  return displayUnit === 'au' ? 'AU' : 'ly';
+}
+
+// Minimum star world-space size (0.00465 AU ≈ solar radius)
+const STAR_MIN_AU = 0.00465;
+const STAR_MIN_WORLD = STAR_MIN_AU * LY_PER_AU * PX_PER_LY;
 
 // Screen-space sizing for stars and labels (in pixels on screen)
 const STAR_SCREEN_SIZE = 16;   // star sprite diameter in screen pixels
@@ -845,7 +870,7 @@ function drawMeasureLine(s1, s2) {
   ctx.fillStyle = '#ffcc44';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${dist.toFixed(2)} ly`, 256, 64);
+  ctx.fillText(`${formatDist(dist)} ${unitLabel()}`, 256, 64);
   const tex = new THREE.CanvasTexture(canvas);
   const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
   measureLabel = new THREE.Sprite(labelMat);
@@ -855,7 +880,7 @@ function drawMeasureLine(s1, s2) {
 
   const resultEl = document.getElementById('distance-result');
   const textEl = document.getElementById('distance-text');
-  textEl.innerHTML = `<strong>${s1.name}</strong> &rarr; <strong>${s2.name}</strong><br>${dist.toFixed(2)} light years`;
+  textEl.innerHTML = `<strong>${s1.name}</strong> &rarr; <strong>${s2.name}</strong><br>${formatDist(dist)} ${displayUnit === 'au' ? 'AU' : 'light years'}`;
   resultEl.classList.add('visible');
 }
 
@@ -890,7 +915,7 @@ renderer.domElement.addEventListener('mousemove', (e) => {
   if (star) {
     hoveredStar = star;
     tooltipName.textContent = star.name;
-    tooltipCoords.textContent = `(${star.x.toFixed(1)}, ${star.y.toFixed(1)}, ${star.z.toFixed(1)}) ly`;
+    tooltipCoords.textContent = `(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)}) ${unitLabel()}`;
     const zone = star.zoneId ? zones.find(z => z.id === star.zoneId) : null;
     tooltipZone.textContent = zone ? `Zone: ${zone.name}` : '';
     tooltip.style.display = 'block';
@@ -1003,6 +1028,22 @@ function setMeasureMode(on) {
 }
 
 document.getElementById('btn-measure').addEventListener('click', () => setMeasureMode(true));
+
+// ── Unit Toggle ──────────────────────────────────────
+document.getElementById('btn-unit-toggle').addEventListener('click', () => {
+  displayUnit = displayUnit === 'ly' ? 'au' : 'ly';
+  document.getElementById('btn-unit-toggle').textContent = `Units: ${unitLabel()}`;
+  // Refresh all displays that show coordinates/distances
+  updateStarList();
+  // Rebuild star name labels (they show in 3D)
+  rebuildStarMeshes();
+  // If a measurement line exists, redraw it
+  if (measureLine) {
+    // Find the two stars from the distance result text
+    // Easier: just clear and let user re-measure
+    clearMeasureLine();
+  }
+});
 document.getElementById('btn-cancel-measure').addEventListener('click', () => {
   setMeasureMode(false);
   clearMeasureLine();
@@ -1062,7 +1103,7 @@ function updateStarList() {
     entry.innerHTML = `
       <div>
         <span class="name">${star.name}</span> ${zoneTag}<br>
-        <span class="coords">(${star.x.toFixed(1)}, ${star.y.toFixed(1)}, ${star.z.toFixed(1)}) ly</span>
+        <span class="coords">(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)}) ${unitLabel()}</span>
       </div>
       <span class="delete-star" title="Delete star">&times;</span>
     `;
@@ -1265,7 +1306,7 @@ function animate() {
   for (let i = 0; i < starGroup.children.length; i++) {
     const starSprite = starGroup.children[i];
     const dist = camera.position.distanceTo(starSprite.position);
-    const s = screenToWorld(STAR_SCREEN_SIZE, dist);
+    const s = Math.max(screenToWorld(STAR_SCREEN_SIZE, dist), STAR_MIN_WORLD);
     starSprite.scale.set(s, s, 1);
 
     const label = nameSprites.children[i];
