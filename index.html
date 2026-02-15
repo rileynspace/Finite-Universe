@@ -224,7 +224,7 @@
   .star-entry:hover .delete-star { opacity: 1; }
 
   /* Edit Star Modal */
-  #edit-overlay {
+  #edit-overlay, #edit-zone-overlay {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -233,7 +233,7 @@
     justify-content: center;
     align-items: center;
   }
-  #edit-overlay.visible { display: flex; }
+  #edit-overlay.visible, #edit-zone-overlay.visible { display: flex; }
   #edit-modal {
     background: rgba(10, 15, 30, 0.97);
     border: 1px solid rgba(100, 140, 255, 0.4);
@@ -275,6 +275,27 @@
   }
   #edit-modal .edit-coord-row { display: flex; gap: 6px; }
   #edit-modal .edit-coord-row > div { flex: 1; }
+  .zone-star-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #ddeeff;
+  }
+  .zone-star-entry:hover { background: rgba(60, 100, 220, 0.15); }
+  .zone-star-entry .remove-from-zone {
+    color: #ff6666;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 6px;
+    border: 1px solid rgba(255, 80, 80, 0.3);
+    border-radius: 3px;
+    background: rgba(200, 50, 50, 0.15);
+  }
+  .zone-star-entry .remove-from-zone:hover { background: rgba(200, 50, 50, 0.35); }
+  .zone-star-empty { color: #667799; font-size: 12px; font-style: italic; padding: 4px 6px; }
   #edit-modal .btn-row { margin-top: 16px; display: flex; gap: 8px; }
   #edit-modal .btn-row .btn { flex: 1; text-align: center; }
 
@@ -400,6 +421,30 @@
     <div class="btn-row">
       <button class="btn" id="btn-edit-save">Save</button>
       <button class="btn" id="btn-edit-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Zone Modal -->
+<div id="edit-zone-overlay">
+  <div id="edit-modal">
+    <h3>Edit Zone</h3>
+    <input type="hidden" id="edit-zone-id">
+    <label for="edit-zone-name">Name</label>
+    <input type="text" id="edit-zone-name">
+    <label for="edit-zone-color">Color</label>
+    <select id="edit-zone-color">
+      <option value="red">Red</option>
+      <option value="blue">Blue</option>
+      <option value="yellow">Yellow</option>
+      <option value="green">Green</option>
+      <option value="gray">Gray</option>
+    </select>
+    <label>Stars in zone</label>
+    <div id="edit-zone-star-list" style="max-height:120px; overflow-y:auto; margin-top:4px;"></div>
+    <div class="btn-row">
+      <button class="btn" id="btn-edit-zone-save">Save</button>
+      <button class="btn" id="btn-edit-zone-cancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -1014,7 +1059,75 @@ document.getElementById('edit-overlay').addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeEditModal();
+  if (e.key === 'Escape') { closeEditModal(); closeEditZoneModal(); }
+});
+
+// ── Edit Zone Modal ──────────────────────────────────
+function openEditZoneModal(zone) {
+  document.getElementById('edit-zone-id').value = zone.id;
+  document.getElementById('edit-zone-name').value = zone.name;
+  document.getElementById('edit-zone-color').value = zone.color;
+  populateEditZoneStarList(zone);
+  document.getElementById('edit-zone-overlay').classList.add('visible');
+  document.getElementById('edit-zone-name').focus();
+}
+
+function populateEditZoneStarList(zone) {
+  const listEl = document.getElementById('edit-zone-star-list');
+  listEl.innerHTML = '';
+  const zoneStars = stars.filter(s => zone.starIds.includes(s.id));
+  if (zoneStars.length === 0) {
+    listEl.innerHTML = '<div class="zone-star-empty">No stars in this zone</div>';
+    return;
+  }
+  for (const star of zoneStars) {
+    const entry = document.createElement('div');
+    entry.className = 'zone-star-entry';
+    entry.innerHTML = `
+      <span>${star.name} <span style="color:#667799; font-size:11px;">(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)})</span></span>
+      <span class="remove-from-zone">Remove</span>
+    `;
+    entry.querySelector('.remove-from-zone').addEventListener('click', () => {
+      // Remove star from zone
+      zone.starIds = zone.starIds.filter(sid => sid !== star.id);
+      star.zoneId = null;
+      populateEditZoneStarList(zone);
+      rebuildZoneMeshes();
+      updateStarList();
+      updateZoneList();
+      saveToLocalStorage();
+    });
+    listEl.appendChild(entry);
+  }
+}
+
+function closeEditZoneModal() {
+  document.getElementById('edit-zone-overlay').classList.remove('visible');
+}
+
+document.getElementById('btn-edit-zone-save').addEventListener('click', () => {
+  const id = parseInt(document.getElementById('edit-zone-id').value);
+  const name = document.getElementById('edit-zone-name').value.trim();
+  const color = document.getElementById('edit-zone-color').value;
+  if (!name) { alert('Please enter a zone name.'); return; }
+
+  const zone = zones.find(z => z.id === id);
+  if (zone) {
+    zone.name = name;
+    zone.color = color;
+    rebuildZoneMeshes();
+    updateZoneList();
+    updateZoneDropdowns();
+    updateStarList();
+    saveToLocalStorage();
+  }
+  closeEditZoneModal();
+});
+
+document.getElementById('btn-edit-zone-cancel').addEventListener('click', closeEditZoneModal);
+
+document.getElementById('edit-zone-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('edit-zone-overlay')) closeEditZoneModal();
 });
 
 // ── Measure Mode ─────────────────────────────────────
@@ -1149,6 +1262,7 @@ function updateZoneList() {
       <span class="delete-zone" title="Delete zone">&times;</span>
     `;
     entry.querySelector('.delete-zone').addEventListener('click', () => removeZone(zone.id));
+    entry.addEventListener('dblclick', () => openEditZoneModal(zone));
     listEl.appendChild(entry);
   }
 }
