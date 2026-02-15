@@ -224,7 +224,7 @@
   .star-entry:hover .delete-star { opacity: 1; }
 
   /* Edit Star Modal */
-  #edit-overlay, #edit-zone-overlay {
+  #edit-overlay, #edit-zone-overlay, #edit-planet-overlay {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -233,13 +233,15 @@
     justify-content: center;
     align-items: center;
   }
-  #edit-overlay.visible, #edit-zone-overlay.visible { display: flex; }
+  #edit-overlay.visible, #edit-zone-overlay.visible, #edit-planet-overlay.visible { display: flex; }
   #edit-modal {
     background: rgba(10, 15, 30, 0.97);
     border: 1px solid rgba(100, 140, 255, 0.4);
     border-radius: 10px;
     padding: 24px;
-    width: 280px;
+    width: 300px;
+    max-height: 90vh;
+    overflow-y: auto;
     backdrop-filter: blur(10px);
   }
   #edit-modal h3 {
@@ -295,7 +297,35 @@
     background: rgba(200, 50, 50, 0.15);
   }
   .zone-star-entry .remove-from-zone:hover { background: rgba(200, 50, 50, 0.35); }
-  .zone-star-empty { color: #667799; font-size: 12px; font-style: italic; padding: 4px 6px; }
+  .zone-star-empty, .planet-list-empty { color: #667799; font-size: 12px; font-style: italic; padding: 4px 6px; }
+  .planet-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #ddeeff;
+  }
+  .planet-entry:hover { background: rgba(60, 100, 220, 0.15); }
+  .planet-entry .planet-class-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 5px;
+    vertical-align: middle;
+  }
+  .planet-entry .remove-planet {
+    color: #ff6666;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 6px;
+    border: 1px solid rgba(255, 80, 80, 0.3);
+    border-radius: 3px;
+    background: rgba(200, 50, 50, 0.15);
+  }
+  .planet-entry .remove-planet:hover { background: rgba(200, 50, 50, 0.35); }
   #edit-modal .btn-row { margin-top: 16px; display: flex; gap: 8px; }
   #edit-modal .btn-row .btn { flex: 1; text-align: center; }
 
@@ -418,9 +448,63 @@
     </div>
     <label for="edit-star-zone">Zone</label>
     <select id="edit-star-zone"><option value="">None</option></select>
+    <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
+    <label>Planets</label>
+    <div id="edit-star-planet-list" style="max-height:120px; overflow-y:auto; margin-top:4px;"></div>
+    <div style="margin-top:8px; padding:8px; background:rgba(20,30,60,0.4); border-radius:4px;">
+      <label for="add-planet-name" style="margin-top:0;">New Planet</label>
+      <input type="text" id="add-planet-name" placeholder="Planet name">
+      <div class="edit-coord-row" style="margin-top:6px;">
+        <div>
+          <label for="add-planet-radius">Radius (AU)</label>
+          <input type="number" id="add-planet-radius" placeholder="1" min="0.01" step="any">
+        </div>
+        <div>
+          <label for="add-planet-angle">Angle (°)</label>
+          <input type="number" id="add-planet-angle" placeholder="0" min="0" max="360" step="any">
+        </div>
+      </div>
+      <label for="add-planet-class">Classification</label>
+      <select id="add-planet-class">
+        <option value="terrestrial">Terrestrial</option>
+        <option value="gas_giant">Gas Giant</option>
+        <option value="ice_giant">Ice Giant</option>
+      </select>
+      <button class="btn" id="btn-add-planet" style="width:100%;">Add Planet</button>
+    </div>
     <div class="btn-row">
       <button class="btn" id="btn-edit-save">Save</button>
       <button class="btn" id="btn-edit-cancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Planet Modal -->
+<div id="edit-planet-overlay">
+  <div id="edit-modal">
+    <h3>Edit Planet</h3>
+    <input type="hidden" id="edit-planet-id">
+    <label for="edit-planet-name">Name</label>
+    <input type="text" id="edit-planet-name">
+    <div class="edit-coord-row">
+      <div>
+        <label for="edit-planet-radius">Radius (AU)</label>
+        <input type="number" id="edit-planet-radius" min="0.01" step="any">
+      </div>
+      <div>
+        <label for="edit-planet-angle">Angle (°)</label>
+        <input type="number" id="edit-planet-angle" min="0" max="360" step="any">
+      </div>
+    </div>
+    <label for="edit-planet-class">Classification</label>
+    <select id="edit-planet-class">
+      <option value="terrestrial">Terrestrial</option>
+      <option value="gas_giant">Gas Giant</option>
+      <option value="ice_giant">Ice Giant</option>
+    </select>
+    <div class="btn-row">
+      <button class="btn" id="btn-edit-planet-save">Save</button>
+      <button class="btn" id="btn-edit-planet-cancel">Cancel</button>
     </div>
   </div>
 </div>
@@ -456,7 +540,8 @@
   Middle-click + drag: Pan<br>
   Scroll: Zoom<br>
   Click star: Select / Info<br>
-  Double-click star: Edit
+  Double-click star/planet: Edit<br>
+  Zoom in to see planets
 </div>
 
 <script type="importmap">
@@ -520,11 +605,26 @@ const LABEL_SCREEN_HEIGHT = 30; // name label height in screen pixels
 const ZONE_LABEL_SCREEN_WIDTH = 160;  // zone label width in screen pixels
 const ZONE_LABEL_SCREEN_HEIGHT = 40;  // zone label height in screen pixels
 
+// Planet rendering
+const PLANET_SCREEN_SIZE = 10;       // planet sprite diameter in screen pixels
+const PLANET_LABEL_SCREEN_WIDTH = 90;
+const PLANET_LABEL_SCREEN_HEIGHT = 22;
+const AU_TO_WORLD = 2;               // 1 AU = 2 world units (exaggerated for visibility)
+const PLANET_VISIBLE_DIST = lyToWorld(5); // planets visible within 5 ly of parent star
+
+const PLANET_CLASSIFICATIONS = {
+  terrestrial: { hex: 0x88aa55, css: '#88aa55', label: 'Terrestrial' },
+  gas_giant:   { hex: 0xdd9944, css: '#dd9944', label: 'Gas Giant' },
+  ice_giant:   { hex: 0x66bbdd, css: '#66bbdd', label: 'Ice Giant' },
+};
+
 // ── State ─────────────────────────────────────────────
 let stars = [];       // { id, name, x, y, z, zoneId } — coords in light years
 let zones = [];       // { id, name, color, starIds[] }
+let planets = [];     // { id, name, starId, orbitalRadius (AU), orbitalAngle (deg), classification }
 let nextStarId = 1;
 let nextZoneId = 1;
+let nextPlanetId = 1;
 let measureMode = false;
 let measureSelection = [];
 let measureLine = null;
@@ -654,6 +754,26 @@ const nameSprites = new THREE.Group();
 scene.add(nameSprites);
 const zoneGroup = new THREE.Group();
 scene.add(zoneGroup);
+const planetGroup = new THREE.Group();
+scene.add(planetGroup);
+const planetLabelGroup = new THREE.Group();
+scene.add(planetLabelGroup);
+
+function createPlanetTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 28);
+  gradient.addColorStop(0, 'rgba(255,255,255,0.9)');
+  gradient.addColorStop(0.3, 'rgba(200,200,200,0.7)');
+  gradient.addColorStop(0.7, 'rgba(150,150,150,0.3)');
+  gradient.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(canvas);
+}
+const planetTexture = createPlanetTexture();
 
 function createStarTexture() {
   const canvas = document.createElement('canvas');
@@ -806,6 +926,60 @@ function rebuildZoneMeshes() {
   }
 }
 
+// ── Planet Rendering ─────────────────────────────────
+function rebuildPlanetMeshes() {
+  while (planetGroup.children.length) planetGroup.remove(planetGroup.children[0]);
+  while (planetLabelGroup.children.length) planetLabelGroup.remove(planetLabelGroup.children[0]);
+
+  for (const planet of planets) {
+    const star = stars.find(s => s.id === planet.starId);
+    if (!star) continue;
+
+    const classInfo = PLANET_CLASSIFICATIONS[planet.classification] || PLANET_CLASSIFICATIONS.terrestrial;
+    const angleRad = (planet.orbitalAngle * Math.PI) / 180;
+    const orbitWorld = planet.orbitalRadius * AU_TO_WORLD;
+
+    const wx = lyToWorld(star.x) + Math.cos(angleRad) * orbitWorld;
+    const wy = lyToWorld(star.y);
+    const wz = lyToWorld(star.z) + Math.sin(angleRad) * orbitWorld;
+
+    const mat = new THREE.SpriteMaterial({
+      map: planetTexture,
+      color: classInfo.hex,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthTest: false,
+    });
+    const sprite = new THREE.Sprite(mat);
+    sprite.position.set(wx, wy, wz);
+    sprite.scale.set(1, 1, 1);
+    sprite.userData.planetId = planet.id;
+    sprite.userData.starId = planet.starId;
+    sprite.visible = false; // controlled in animate()
+    planetGroup.add(sprite);
+
+    // Planet name label
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.font = '30px Arial';
+    ctx.fillStyle = classInfo.css;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(planet.name, 256, 64);
+    const tex = new THREE.CanvasTexture(canvas);
+    const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const label = new THREE.Sprite(labelMat);
+    label.position.set(wx, wy, wz);
+    label.scale.set(1, 1, 1);
+    label.userData.planetId = planet.id;
+    label.userData.starId = planet.starId;
+    label.visible = false;
+    planetLabelGroup.add(label);
+  }
+}
+
 // ── Star CRUD ────────────────────────────────────────
 function addStar(name, x, y, z, zoneId = null) {
   const star = { id: nextStarId++, name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z), zoneId };
@@ -855,9 +1029,11 @@ function removeStar(id) {
     if (zone) zone.starIds = zone.starIds.filter(sid => sid !== id);
   }
   stars = stars.filter(s => s.id !== id);
+  planets = planets.filter(p => p.starId !== id);
   measureSelection = measureSelection.filter(sid => sid !== id);
   clearMeasureLine();
   rebuildStarMeshes();
+  rebuildPlanetMeshes();
   rebuildZoneMeshes();
   updateStarList();
   updateZoneList();
@@ -883,6 +1059,32 @@ function removeZone(id) {
   updateZoneList();
   updateZoneDropdowns();
   updateStarList();
+  saveToLocalStorage();
+}
+
+// ── Planet CRUD ──────────────────────────────────────
+function addPlanet(name, starId, orbitalRadius, orbitalAngle, classification) {
+  const planet = { id: nextPlanetId++, name, starId, orbitalRadius: parseFloat(orbitalRadius), orbitalAngle: parseFloat(orbitalAngle), classification };
+  planets.push(planet);
+  rebuildPlanetMeshes();
+  saveToLocalStorage();
+  return planet;
+}
+
+function updatePlanet(id, name, orbitalRadius, orbitalAngle, classification) {
+  const planet = planets.find(p => p.id === id);
+  if (!planet) return;
+  planet.name = name;
+  planet.orbitalRadius = parseFloat(orbitalRadius);
+  planet.orbitalAngle = parseFloat(orbitalAngle);
+  planet.classification = classification;
+  rebuildPlanetMeshes();
+  saveToLocalStorage();
+}
+
+function removePlanet(id) {
+  planets = planets.filter(p => p.id !== id);
+  rebuildPlanetMeshes();
   saveToLocalStorage();
 }
 
@@ -953,6 +1155,21 @@ function getIntersectedStar(event) {
   return null;
 }
 
+function getIntersectedPlanet(event) {
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  const camDist = camera.position.distanceTo(controls.target);
+  raycaster.params.Sprite = { threshold: screenToWorld(PLANET_SCREEN_SIZE * 0.75, camDist) };
+  raycaster.setFromCamera(mouse, camera);
+  const visiblePlanets = planetGroup.children.filter(c => c.visible);
+  const hits = raycaster.intersectObjects(visiblePlanets);
+  if (hits.length > 0) {
+    const id = hits[0].object.userData.planetId;
+    return planets.find(p => p.id === id) || null;
+  }
+  return null;
+}
+
 // Tooltip
 const tooltip = document.getElementById('star-tooltip');
 const tooltipName = document.getElementById('tooltip-name');
@@ -960,13 +1177,32 @@ const tooltipCoords = document.getElementById('tooltip-coords');
 const tooltipZone = document.getElementById('tooltip-zone');
 
 renderer.domElement.addEventListener('mousemove', (e) => {
+  // Check planets first (they're smaller, harder to hit)
+  const planet = getIntersectedPlanet(e);
+  if (planet) {
+    const classInfo = PLANET_CLASSIFICATIONS[planet.classification] || PLANET_CLASSIFICATIONS.terrestrial;
+    const parentStar = stars.find(s => s.id === planet.starId);
+    tooltipName.textContent = planet.name;
+    tooltipCoords.textContent = `Orbit: ${planet.orbitalRadius} AU, ${planet.orbitalAngle}°`;
+    tooltipZone.textContent = `${classInfo.label} · Star: ${parentStar ? parentStar.name : '?'}`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 16) + 'px';
+    tooltip.style.top = (e.clientY - 10) + 'px';
+    document.body.style.cursor = 'pointer';
+    hoveredStar = null;
+    return;
+  }
+
   const star = getIntersectedStar(e);
   if (star) {
     hoveredStar = star;
     tooltipName.textContent = star.name;
     tooltipCoords.textContent = `(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)}) ${unitLabel()}`;
     const zone = star.zoneId ? zones.find(z => z.id === star.zoneId) : null;
-    tooltipZone.textContent = zone ? `Zone: ${zone.name}` : '';
+    const planetCount = planets.filter(p => p.starId === star.id).length;
+    let info = zone ? `Zone: ${zone.name}` : '';
+    if (planetCount > 0) info += `${info ? ' · ' : ''}${planetCount} planet${planetCount !== 1 ? 's' : ''}`;
+    tooltipZone.textContent = info;
     tooltip.style.display = 'block';
     tooltip.style.left = (e.clientX + 16) + 'px';
     tooltip.style.top = (e.clientY - 10) + 'px';
@@ -998,11 +1234,12 @@ renderer.domElement.addEventListener('click', (e) => {
   }
 });
 
-// Double-click: open edit modal
+// Double-click: open edit modal (planet or star)
 renderer.domElement.addEventListener('dblclick', (e) => {
+  const planet = getIntersectedPlanet(e);
+  if (planet) { openEditPlanetModal(planet); return; }
   const star = getIntersectedStar(e);
-  if (!star) return;
-  openEditModal(star);
+  if (star) openEditModal(star);
 });
 
 // ── Edit Modal ───────────────────────────────────────
@@ -1023,9 +1260,98 @@ function openEditModal(star) {
     sel.appendChild(opt);
   }
 
+  populateStarPlanetList(star);
   document.getElementById('edit-overlay').classList.add('visible');
   document.getElementById('edit-star-name').focus();
 }
+
+function populateStarPlanetList(star) {
+  const listEl = document.getElementById('edit-star-planet-list');
+  listEl.innerHTML = '';
+  const starPlanets = planets.filter(p => p.starId === star.id);
+  if (starPlanets.length === 0) {
+    listEl.innerHTML = '<div class="planet-list-empty">No planets</div>';
+    return;
+  }
+  for (const planet of starPlanets) {
+    const classInfo = PLANET_CLASSIFICATIONS[planet.classification] || PLANET_CLASSIFICATIONS.terrestrial;
+    const entry = document.createElement('div');
+    entry.className = 'planet-entry';
+    entry.innerHTML = `
+      <span><span class="planet-class-dot" style="background:${classInfo.css}"></span>${planet.name} <span style="color:#667799; font-size:11px;">${planet.orbitalRadius} AU</span></span>
+      <span class="remove-planet">Remove</span>
+    `;
+    entry.querySelector('.remove-planet').addEventListener('click', () => {
+      removePlanet(planet.id);
+      populateStarPlanetList(star);
+    });
+    entry.addEventListener('dblclick', () => {
+      closeEditModal();
+      openEditPlanetModal(planet);
+    });
+    listEl.appendChild(entry);
+  }
+}
+
+// Add planet button inside star edit modal
+document.getElementById('btn-add-planet').addEventListener('click', () => {
+  const starId = parseInt(document.getElementById('edit-star-id').value);
+  const name = document.getElementById('add-planet-name').value.trim();
+  const radius = document.getElementById('add-planet-radius').value;
+  const angle = document.getElementById('add-planet-angle').value;
+  const classification = document.getElementById('add-planet-class').value;
+
+  if (!name) { alert('Please enter a planet name.'); return; }
+  if (radius === '' || angle === '') { alert('Please enter orbital radius and angle.'); return; }
+  const rn = parseFloat(radius);
+  if (isNaN(rn) || rn <= 0) { alert('Orbital radius must be greater than 0.'); return; }
+
+  const star = stars.find(s => s.id === starId);
+  addPlanet(name, starId, rn, parseFloat(angle) || 0, classification);
+  if (star) populateStarPlanetList(star);
+
+  document.getElementById('add-planet-name').value = '';
+  document.getElementById('add-planet-radius').value = '';
+  document.getElementById('add-planet-angle').value = '';
+  document.getElementById('add-planet-class').value = 'terrestrial';
+});
+
+// ── Edit Planet Modal ────────────────────────────────
+function openEditPlanetModal(planet) {
+  document.getElementById('edit-planet-id').value = planet.id;
+  document.getElementById('edit-planet-name').value = planet.name;
+  document.getElementById('edit-planet-radius').value = planet.orbitalRadius;
+  document.getElementById('edit-planet-angle').value = planet.orbitalAngle;
+  document.getElementById('edit-planet-class').value = planet.classification;
+  document.getElementById('edit-planet-overlay').classList.add('visible');
+  document.getElementById('edit-planet-name').focus();
+}
+
+function closeEditPlanetModal() {
+  document.getElementById('edit-planet-overlay').classList.remove('visible');
+}
+
+document.getElementById('btn-edit-planet-save').addEventListener('click', () => {
+  const id = parseInt(document.getElementById('edit-planet-id').value);
+  const name = document.getElementById('edit-planet-name').value.trim();
+  const radius = document.getElementById('edit-planet-radius').value;
+  const angle = document.getElementById('edit-planet-angle').value;
+  const classification = document.getElementById('edit-planet-class').value;
+
+  if (!name) { alert('Please enter a planet name.'); return; }
+  if (radius === '') { alert('Please enter orbital radius.'); return; }
+  const rn = parseFloat(radius);
+  if (isNaN(rn) || rn <= 0) { alert('Orbital radius must be greater than 0.'); return; }
+
+  updatePlanet(id, name, rn, parseFloat(angle) || 0, classification);
+  closeEditPlanetModal();
+});
+
+document.getElementById('btn-edit-planet-cancel').addEventListener('click', closeEditPlanetModal);
+
+document.getElementById('edit-planet-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('edit-planet-overlay')) closeEditPlanetModal();
+});
 
 function closeEditModal() {
   document.getElementById('edit-overlay').classList.remove('visible');
@@ -1059,7 +1385,7 @@ document.getElementById('edit-overlay').addEventListener('click', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') { closeEditModal(); closeEditZoneModal(); }
+  if (e.key === 'Escape') { closeEditModal(); closeEditZoneModal(); closeEditPlanetModal(); }
 });
 
 // ── Edit Zone Modal ──────────────────────────────────
@@ -1152,8 +1478,9 @@ document.getElementById('btn-unit-toggle').addEventListener('click', () => {
   document.getElementById('btn-unit-toggle').textContent = `Units: ${unitLabel()}`;
   // Refresh all displays that show coordinates/distances
   updateStarList();
-  // Rebuild star name labels (they show in 3D)
+  // Rebuild labels (they show in 3D)
   rebuildStarMeshes();
+  rebuildPlanetMeshes();
   // If a measurement line exists, redraw it
   if (measureLine) {
     // Find the two stars from the distance result text
@@ -1283,7 +1610,7 @@ function updateZoneDropdowns() {
 
 // ── Export / Import ──────────────────────────────────
 document.getElementById('btn-export').addEventListener('click', () => {
-  const data = JSON.stringify({ stars, zones }, null, 2);
+  const data = JSON.stringify({ stars, zones, planets }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1337,6 +1664,18 @@ document.getElementById('file-input').addEventListener('change', (e) => {
           delete z._oldId;
           delete z._oldStarIds;
         }
+        // Import planets
+        if (imported.planets && Array.isArray(imported.planets)) {
+          for (const p of imported.planets) {
+            if (p.name && p.starId !== undefined && p.orbitalRadius !== undefined) {
+              // Find matching star by old ID
+              const matchStar = stars.find(s => s.name === (imported.stars.find(is => is.id === p.starId) || {}).name);
+              if (matchStar) {
+                addPlanet(p.name, matchStar.id, p.orbitalRadius, p.orbitalAngle || 0, p.classification || 'terrestrial');
+              }
+            }
+          }
+        }
       }
     } catch (err) {
       alert('Invalid JSON file: ' + err.message);
@@ -1347,14 +1686,17 @@ document.getElementById('file-input').addEventListener('change', (e) => {
 });
 
 document.getElementById('btn-clear-all').addEventListener('click', () => {
-  if (!confirm('Delete all stars and zones?')) return;
+  if (!confirm('Delete all stars, planets, and zones?')) return;
   stars = [];
   zones = [];
+  planets = [];
   nextStarId = 1;
   nextZoneId = 1;
+  nextPlanetId = 1;
   measureSelection = [];
   clearMeasureLine();
   rebuildStarMeshes();
+  rebuildPlanetMeshes();
   rebuildZoneMeshes();
   updateStarList();
   updateZoneList();
@@ -1366,16 +1708,20 @@ document.getElementById('btn-clear-all').addEventListener('click', () => {
 function saveToLocalStorage() {
   localStorage.setItem('universe-map-stars', JSON.stringify(stars));
   localStorage.setItem('universe-map-zones', JSON.stringify(zones));
+  localStorage.setItem('universe-map-planets', JSON.stringify(planets));
   localStorage.setItem('universe-map-nextStarId', nextStarId);
   localStorage.setItem('universe-map-nextZoneId', nextZoneId);
+  localStorage.setItem('universe-map-nextPlanetId', nextPlanetId);
 }
 
 function loadFromLocalStorage() {
   try {
     const starData = localStorage.getItem('universe-map-stars');
     const zoneData = localStorage.getItem('universe-map-zones');
+    const planetData = localStorage.getItem('universe-map-planets');
     const nsid = localStorage.getItem('universe-map-nextStarId');
     const nzid = localStorage.getItem('universe-map-nextZoneId');
+    const npid = localStorage.getItem('universe-map-nextPlanetId');
 
     if (zoneData) {
       zones = JSON.parse(zoneData);
@@ -1385,8 +1731,13 @@ function loadFromLocalStorage() {
       stars = JSON.parse(starData);
       nextStarId = nsid ? parseInt(nsid) : (stars.length ? Math.max(...stars.map(s => s.id)) + 1 : 1);
     }
+    if (planetData) {
+      planets = JSON.parse(planetData);
+      nextPlanetId = npid ? parseInt(npid) : (planets.length ? Math.max(...planets.map(p => p.id)) + 1 : 1);
+    }
 
     rebuildStarMeshes();
+    rebuildPlanetMeshes();
     rebuildZoneMeshes();
     updateStarList();
     updateZoneList();
@@ -1441,6 +1792,39 @@ function animate() {
         starSprite.position.y + s * 0.6 + lh * 0.5,
         starSprite.position.z
       );
+    }
+  }
+
+  // Dynamically size and show/hide planet sprites and labels
+  for (let i = 0; i < planetGroup.children.length; i++) {
+    const pSprite = planetGroup.children[i];
+    const starId = pSprite.userData.starId;
+    // Find the parent star's world position
+    const starSprite = starGroup.children.find(c => c.userData.starId === starId);
+    if (!starSprite) { pSprite.visible = false; continue; }
+
+    const starDist = camera.position.distanceTo(starSprite.position);
+    const visible = starDist < PLANET_VISIBLE_DIST;
+    pSprite.visible = visible;
+
+    const pLabel = planetLabelGroup.children[i];
+    if (pLabel) pLabel.visible = visible;
+
+    if (visible) {
+      const dist = camera.position.distanceTo(pSprite.position);
+      const ps = screenToWorld(PLANET_SCREEN_SIZE, dist);
+      pSprite.scale.set(ps, ps, 1);
+
+      if (pLabel) {
+        const plw = screenToWorld(PLANET_LABEL_SCREEN_WIDTH, dist);
+        const plh = screenToWorld(PLANET_LABEL_SCREEN_HEIGHT, dist);
+        pLabel.scale.set(plw, plh, 1);
+        pLabel.position.set(
+          pSprite.position.x,
+          pSprite.position.y + ps * 0.6 + plh * 0.5,
+          pSprite.position.z
+        );
+      }
     }
   }
 
