@@ -235,6 +235,49 @@
     overflow-y: auto;
     flex: 1;
   }
+  .star-folder {
+    margin-bottom: 2px;
+  }
+  .star-folder-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #7ab4ff;
+    transition: background 0.15s;
+  }
+  .star-folder-header:hover { background: rgba(60, 100, 220, 0.15); }
+  .star-folder-header .folder-toggle { margin-right: 4px; font-size: 10px; }
+  .star-folder-header .folder-count { color: #667799; font-size: 11px; margin-left: 4px; }
+  .star-folder-header .delete-folder {
+    color: #ff6666; cursor: pointer; font-size: 14px; padding: 0 4px;
+    opacity: 0; transition: opacity 0.15s;
+  }
+  .star-folder-header:hover .delete-folder { opacity: 1; }
+  .star-folder-contents {
+    padding-left: 12px;
+  }
+  .star-folder-contents.collapsed { display: none; }
+  #star-list-toolbar {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 6px;
+    flex-shrink: 0;
+  }
+  #star-list-toolbar .btn { font-size: 10px; padding: 3px 8px; }
+  #move-to-folder-select {
+    font-size: 10px;
+    padding: 2px 4px;
+    background: rgba(30, 50, 100, 0.5);
+    color: #aabbdd;
+    border: 1px solid rgba(100, 140, 255, 0.2);
+    border-radius: 3px;
+    cursor: pointer;
+    max-width: 120px;
+  }
   .star-entry {
     display: flex;
     justify-content: space-between;
@@ -542,6 +585,12 @@
 <!-- Star List -->
 <div id="star-list-panel">
   <h3>Stars (<span id="star-count">0</span>)</h3>
+  <div id="star-list-toolbar">
+    <button class="btn" id="btn-add-folder">+ Folder</button>
+    <select id="move-to-folder-select" title="Move selected stars to a folder">
+      <option value="" disabled selected>Move to...</option>
+    </select>
+  </div>
   <div id="star-list"></div>
 </div>
 
@@ -570,6 +619,8 @@
     <input type="number" id="edit-star-size" min="0.00001" step="any">
     <label for="edit-star-zone">Zone</label>
     <select id="edit-star-zone"><option value="">None</option></select>
+    <label for="edit-star-folder">Folder</label>
+    <select id="edit-star-folder"><option value="">None</option></select>
     <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
     <label>Planets</label>
     <div id="edit-star-planet-list" style="max-height:120px; overflow-y:auto; margin-top:4px;"></div>
@@ -676,6 +727,9 @@
     </div>
     <label for="bulk-zone">Zone (optional)</label>
     <select id="bulk-zone"><option value="">None</option></select>
+    <label style="display:flex; align-items:center; gap:6px; margin-top:8px; cursor:pointer;">
+      <input type="checkbox" id="bulk-create-folder" checked> Create folder for group
+    </label>
     <div id="bulk-status" style="display:none; margin-top:8px; font-size:12px; color:#88aacc;"></div>
     <div class="btn-row">
       <button class="btn" id="btn-bulk-generate">Generate</button>
@@ -809,13 +863,16 @@ const PLANET_CLASSIFICATIONS = {
 const DEFAULT_STAR_SIZE = 0.00465; // Solar radius in AU
 
 // ── State ─────────────────────────────────────────────
-let stars = [];       // { id, name, x, y, z, zoneId } — coords in light years
+let stars = [];       // { id, name, x, y, z, zoneId, folderId } — coords in light years
 let zones = [];       // { id, name, color, starIds[] }
 let planets = [];     // { id, name, starId, orbitalRadius (AU), orbitalAngle (deg), classification }
+let starFolders = []; // { id, name, collapsed }
+let nextFolderId = 1;
 let nextStarId = 1;
 let nextZoneId = 1;
 let nextPlanetId = 1;
 let selectedStarIds = new Set();
+let lastClickedStarId = null;
 let measureMode = false;
 let measureSelection = [];
 let measureLine = null;
@@ -1236,7 +1293,7 @@ function addStar(name, x, y, z, zoneId = null, size = DEFAULT_STAR_SIZE) {
   return star;
 }
 
-function updateStar(id, name, x, y, z, zoneId, size) {
+function updateStar(id, name, x, y, z, zoneId, size, folderId) {
   const star = stars.find(s => s.id === id);
   if (!star) return;
   const oldZoneId = star.zoneId;
@@ -1246,6 +1303,7 @@ function updateStar(id, name, x, y, z, zoneId, size) {
   star.z = parseFloat(z);
   star.zoneId = zoneId || null;
   star.size = parseFloat(size) || DEFAULT_STAR_SIZE;
+  if (folderId !== undefined) star.folderId = folderId;
 
   if (oldZoneId && oldZoneId !== zoneId) {
     const oldZone = zones.find(z => z.id === oldZoneId);
@@ -1689,6 +1747,16 @@ function openEditModal(star) {
     sel.appendChild(opt);
   }
 
+  const folderSel = document.getElementById('edit-star-folder');
+  folderSel.innerHTML = '<option value="">None</option>';
+  for (const f of starFolders) {
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.name;
+    if (star.folderId === f.id) opt.selected = true;
+    folderSel.appendChild(opt);
+  }
+
   populateStarPlanetList(star);
   document.getElementById('edit-overlay').classList.add('visible');
   document.getElementById('edit-star-name').focus();
@@ -1798,6 +1866,8 @@ document.getElementById('btn-edit-save').addEventListener('click', () => {
   const z = document.getElementById('edit-star-z').value;
   const zoneVal = document.getElementById('edit-star-zone').value;
   const zoneId = zoneVal ? parseInt(zoneVal) : null;
+  const folderVal = document.getElementById('edit-star-folder').value;
+  const folderId = folderVal ? parseInt(folderVal) : null;
 
   if (!name) { alert('Please enter a star name.'); return; }
   if (x === '' || y === '' || z === '') { alert('Please enter all coordinates.'); return; }
@@ -1808,7 +1878,7 @@ document.getElementById('btn-edit-save').addEventListener('click', () => {
   }
 
   const size = parseFloat(document.getElementById('edit-star-size').value) || DEFAULT_STAR_SIZE;
-  updateStar(id, name, xn, yn, zn, zoneId, size);
+  updateStar(id, name, xn, yn, zn, zoneId, size, folderId);
   closeEditModal();
 });
 
@@ -2356,57 +2426,136 @@ document.getElementById('btn-bulk-generate').addEventListener('click', () => {
 });
 
 // ── Star List UI ─────────────────────────────────────
+function createStarEntry(star) {
+  const zone = star.zoneId ? zones.find(z => z.id === star.zoneId) : null;
+  const entry = document.createElement('div');
+  entry.className = 'star-entry';
+  entry.dataset.id = star.id;
+
+  let zoneTag = '';
+  if (zone) {
+    const c = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
+    zoneTag = `<span class="star-zone-tag" style="background:${c.css}">${zone.name}</span>`;
+  }
+
+  entry.innerHTML = `
+    <div>
+      <span class="name">${star.name}</span> ${zoneTag}<br>
+      <span class="coords">(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)}) ${unitLabel()}</span>
+    </div>
+    <span class="delete-star" title="Delete star">&times;</span>
+  `;
+  entry.addEventListener('click', (e) => {
+    if (e.target.classList.contains('delete-star')) return;
+    if (e.shiftKey && lastClickedStarId !== null) {
+      // Range select: find all star entries in DOM order between anchor and this one
+      const allEntries = [...document.querySelectorAll('#star-list .star-entry')];
+      const anchorIdx = allEntries.findIndex(el => parseInt(el.dataset.id) === lastClickedStarId);
+      const targetIdx = allEntries.findIndex(el => parseInt(el.dataset.id) === star.id);
+      if (anchorIdx !== -1 && targetIdx !== -1) {
+        const from = Math.min(anchorIdx, targetIdx);
+        const to = Math.max(anchorIdx, targetIdx);
+        for (let i = from; i <= to; i++) {
+          selectedStarIds.add(parseInt(allEntries[i].dataset.id));
+        }
+      }
+    } else if (e.ctrlKey || e.metaKey) {
+      // Toggle individual with ctrl/cmd
+      if (selectedStarIds.has(star.id)) selectedStarIds.delete(star.id);
+      else selectedStarIds.add(star.id);
+      lastClickedStarId = star.id;
+    } else {
+      if (selectedStarIds.size === 1 && selectedStarIds.has(star.id)) {
+        selectedStarIds.clear();
+        lastClickedStarId = null;
+      } else {
+        selectedStarIds.clear();
+        selectedStarIds.add(star.id);
+        lastClickedStarId = star.id;
+      }
+    }
+    highlightStarInList();
+    if (selectedStarIds.has(star.id)) {
+      controls.target.set(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
+    }
+  });
+  entry.addEventListener('dblclick', (e) => {
+    if (e.target.classList.contains('delete-star')) return;
+    openSolarSystemPopup(star);
+  });
+  entry.querySelector('.delete-star').addEventListener('click', (e) => {
+    e.stopPropagation();
+    removeStar(star.id);
+  });
+  return entry;
+}
+
 function updateStarList() {
   const listEl = document.getElementById('star-list');
   const countEl = document.getElementById('star-count');
   countEl.textContent = stars.length;
   listEl.innerHTML = '';
-  for (const star of stars) {
-    const zone = star.zoneId ? zones.find(z => z.id === star.zoneId) : null;
-    const entry = document.createElement('div');
-    entry.className = 'star-entry';
-    entry.dataset.id = star.id;
+  refreshFolderDropdown();
 
-    let zoneTag = '';
-    if (zone) {
-      const c = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
-      zoneTag = `<span class="star-zone-tag" style="background:${c.css}">${zone.name}</span>`;
-    }
+  const sortedStars = [...stars].sort((a, b) => a.name.localeCompare(b.name));
 
-    entry.innerHTML = `
+  // Render folders
+  for (const folder of starFolders) {
+    const folderStars = sortedStars.filter(s => s.folderId === folder.id);
+    const folderDiv = document.createElement('div');
+    folderDiv.className = 'star-folder';
+
+    const header = document.createElement('div');
+    header.className = 'star-folder-header';
+    header.innerHTML = `
       <div>
-        <span class="name">${star.name}</span> ${zoneTag}<br>
-        <span class="coords">(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)}) ${unitLabel()}</span>
+        <span class="folder-toggle">${folder.collapsed ? '&#9654;' : '&#9660;'}</span>
+        ${folder.name}
+        <span class="folder-count">(${folderStars.length})</span>
       </div>
-      <span class="delete-star" title="Delete star">&times;</span>
+      <span class="delete-folder" title="Delete folder">&times;</span>
     `;
-    entry.addEventListener('click', (e) => {
-      if (e.target.classList.contains('delete-star')) return;
-      if (e.shiftKey) {
-        if (selectedStarIds.has(star.id)) selectedStarIds.delete(star.id);
-        else selectedStarIds.add(star.id);
-      } else {
-        if (selectedStarIds.size === 1 && selectedStarIds.has(star.id)) {
-          selectedStarIds.clear();
-        } else {
-          selectedStarIds.clear();
-          selectedStarIds.add(star.id);
-        }
-      }
-      highlightStarInList();
-      if (selectedStarIds.has(star.id)) {
-        controls.target.set(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
-      }
+    header.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-folder')) return;
+      folder.collapsed = !folder.collapsed;
+      saveToLocalStorage();
+      updateStarList();
     });
-    entry.addEventListener('dblclick', (e) => {
-      if (e.target.classList.contains('delete-star')) return;
-      openSolarSystemPopup(star);
-    });
-    entry.querySelector('.delete-star').addEventListener('click', (e) => {
+    header.addEventListener('dblclick', (e) => {
+      if (e.target.classList.contains('delete-folder')) return;
       e.stopPropagation();
-      removeStar(star.id);
+      const newName = prompt('Rename folder:', folder.name);
+      if (newName && newName.trim()) {
+        folder.name = newName.trim();
+        saveToLocalStorage();
+        updateStarList();
+      }
     });
-    listEl.appendChild(entry);
+    header.querySelector('.delete-folder').addEventListener('click', (e) => {
+      e.stopPropagation();
+      // Unassign stars from folder, don't delete the stars
+      for (const s of stars) {
+        if (s.folderId === folder.id) s.folderId = null;
+      }
+      starFolders = starFolders.filter(f => f.id !== folder.id);
+      saveToLocalStorage();
+      updateStarList();
+    });
+    folderDiv.appendChild(header);
+
+    const contents = document.createElement('div');
+    contents.className = 'star-folder-contents' + (folder.collapsed ? ' collapsed' : '');
+    for (const star of folderStars) {
+      contents.appendChild(createStarEntry(star));
+    }
+    folderDiv.appendChild(contents);
+    listEl.appendChild(folderDiv);
+  }
+
+  // Render unfiled stars
+  const unfiledStars = sortedStars.filter(s => !s.folderId || !starFolders.find(f => f.id === s.folderId));
+  for (const star of unfiledStars) {
+    listEl.appendChild(createStarEntry(star));
   }
 }
 
@@ -2415,6 +2564,50 @@ function highlightStarInList() {
     el.classList.toggle('selected', selectedStarIds.has(parseInt(el.dataset.id)));
   });
 }
+
+// Add folder button
+document.getElementById('btn-add-folder').addEventListener('click', () => {
+  const name = prompt('Folder name:');
+  if (!name || !name.trim()) return;
+  starFolders.push({ id: nextFolderId++, name: name.trim(), collapsed: false });
+  saveToLocalStorage();
+  updateStarList();
+});
+
+// Move-to-folder dropdown
+function refreshFolderDropdown() {
+  const sel = document.getElementById('move-to-folder-select');
+  sel.innerHTML = '<option value="" disabled selected>Move to...</option>';
+  const noFolder = document.createElement('option');
+  noFolder.value = '__none__';
+  noFolder.textContent = '(No folder)';
+  sel.appendChild(noFolder);
+  for (const f of starFolders) {
+    const opt = document.createElement('option');
+    opt.value = f.id;
+    opt.textContent = f.name;
+    sel.appendChild(opt);
+  }
+}
+
+document.getElementById('move-to-folder-select').addEventListener('change', (e) => {
+  const val = e.target.value;
+  if (selectedStarIds.size === 0) {
+    alert('Select stars first (click or shift-click in the list).');
+    e.target.selectedIndex = 0;
+    return;
+  }
+  const folderId = val === '__none__' ? null : parseInt(val);
+  for (const sid of selectedStarIds) {
+    const star = stars.find(s => s.id === sid);
+    if (star) star.folderId = folderId;
+  }
+  saveToLocalStorage();
+  rebuildStarMeshes();
+  updateStarList();
+  highlightStarInList();
+  e.target.selectedIndex = 0; // reset to "Move to..." placeholder
+});
 
 // ── Zone List UI ─────────────────────────────────────
 function updateZoneList() {
