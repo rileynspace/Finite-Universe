@@ -1625,9 +1625,13 @@ function getIntersectedStar(event) {
   raycaster.params.Sprite = { threshold: screenToWorld(STAR_SCREEN_SIZE * 0.75, camDist) };
   raycaster.setFromCamera(mouse, camera);
   const hits = raycaster.intersectObjects(starGroup.children);
-  if (hits.length > 0) {
-    const id = hits[0].object.userData.starId;
-    return stars.find(s => s.id === id) || null;
+  // Only allow selecting stars within a distance proportional to zoom level
+  const maxSelectDist = camDist * 3;
+  for (const hit of hits) {
+    if (camera.position.distanceTo(hit.object.position) <= maxSelectDist) {
+      const id = hit.object.userData.starId;
+      return stars.find(s => s.id === id) || null;
+    }
   }
   return null;
 }
