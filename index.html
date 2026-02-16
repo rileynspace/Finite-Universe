@@ -244,6 +244,13 @@
     display: flex;
     flex-direction: column;
   }
+  #star-list-body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    flex: 1;
+    min-height: 0;
+  }
   #star-list {
     overflow-y: auto;
     flex: 1;
@@ -519,7 +526,7 @@
   <h3 class="panel-toggle" data-target="add-panel-body">Add Star</h3>
   <div id="add-panel-body" class="panel-body">
   <label for="star-name">Name</label>
-  <input type="text" id="star-name" placeholder="e.g. Sol">
+  <input type="text" id="star-name" placeholder="optional (auto-numbered)">
   <div class="coord-row">
     <div>
       <label for="star-x">X (ly)</label>
@@ -716,7 +723,7 @@
   <div id="edit-modal">
     <h3>Bulk Add Stars</h3>
     <label for="bulk-group-name">Group Name</label>
-    <input type="text" id="bulk-group-name" placeholder="e.g. Alpha">
+    <input type="text" id="bulk-group-name" placeholder="optional (auto-numbered)">
     <label for="bulk-count">Number of Stars</label>
     <input type="number" id="bulk-count" placeholder="10" min="1" max="10000" step="1">
     <label for="bulk-min-dist">Minimum Distance (ly)</label>
@@ -2378,14 +2385,14 @@ document.getElementById('btn-add-star').addEventListener('click', () => {
   const zoneVal = document.getElementById('star-zone').value;
   const zoneId = zoneVal ? parseInt(zoneVal) : null;
 
-  if (!name) { alert('Please enter a star name.'); return; }
   if (x === '' || y === '' || z === '') { alert('Please enter all coordinates.'); return; }
   const xn = parseFloat(x), yn = parseFloat(y), zn = parseFloat(z);
   if ([xn, yn, zn].some(v => isNaN(v) || v < 0 || v > UNIVERSE_SIZE)) {
     alert(`Coordinates must be between 0 and ${UNIVERSE_SIZE}.`);
     return;
   }
-  addStar(name, xn, yn, zn, zoneId);
+  const starName = name || String(nextStarId).padStart(4, '0');
+  addStar(starName, xn, yn, zn, zoneId);
   document.getElementById('star-name').value = '';
   document.getElementById('star-x').value = '';
   document.getElementById('star-y').value = '';
@@ -2437,7 +2444,6 @@ document.getElementById('bulk-shape').addEventListener('change', () => {
 
 document.getElementById('btn-bulk-generate').addEventListener('click', () => {
   const groupName = document.getElementById('bulk-group-name').value.trim();
-  if (!groupName) { alert('Please enter a group name.'); return; }
 
   const count = parseInt(document.getElementById('bulk-count').value);
   if (isNaN(count) || count < 1) { alert('Please enter a valid number of stars.'); return; }
@@ -2536,7 +2542,7 @@ document.getElementById('btn-bulk-generate').addEventListener('click', () => {
   // Create folder for group if checkbox is checked
   let bulkFolderId = null;
   if (document.getElementById('bulk-create-folder').checked && placed.length > 0) {
-    const newFolder = { id: nextFolderId++, name: groupName, collapsed: false };
+    const newFolder = { id: nextFolderId++, name: groupName || `Group ${nextFolderId - 1}`, collapsed: false };
     starFolders.push(newFolder);
     bulkFolderId = newFolder.id;
   }
@@ -2545,7 +2551,9 @@ document.getElementById('btn-bulk-generate').addEventListener('click', () => {
   for (let i = 0; i < placed.length; i++) {
     const p = placed[i];
     const zoneIds = zoneId ? [zoneId] : [];
-    const star = { id: nextStarId++, name: `${groupName} ${i + 1}`, x: p.x, y: p.y, z: p.z, zoneIds, size: DEFAULT_STAR_SIZE, folderId: bulkFolderId };
+    const padded = String(i + 1).padStart(4, '0');
+    const starName = groupName ? `${groupName} ${padded}` : String(nextStarId).padStart(4, '0');
+    const star = { id: nextStarId++, name: starName, x: p.x, y: p.y, z: p.z, zoneIds, size: DEFAULT_STAR_SIZE, folderId: bulkFolderId };
     stars.push(star);
     if (zoneId) {
       const zone = zones.find(z => z.id === zoneId);
