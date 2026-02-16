@@ -329,7 +329,7 @@
   }
   .star-entry:hover .delete-star { opacity: 1; }
 
-  /* Edit Star Modal */
+  /* Edit Solar System Modal */
   #solar-system-overlay {
     display: none;
     position: fixed;
@@ -372,15 +372,12 @@
     line-height: 1;
   }
   #solar-system-close:hover { color: #ff9999; }
-  #btn-solar-recenter {
-    position: absolute;
-    bottom: 28px;
-    right: 120px;
-  }
-  #btn-solar-edit-star {
+  #solar-system-popup .btn-row-bottom {
     position: absolute;
     bottom: 28px;
     right: 28px;
+    display: flex;
+    gap: 8px;
   }
 
   #bulk-add-overlay {
@@ -626,10 +623,10 @@
   <div class="ctx-item ctx-danger" id="ctx-multi-delete">Delete Selected Stars</div>
 </div>
 
-<!-- Edit Star Modal -->
+<!-- Edit Solar System Modal -->
 <div id="edit-overlay">
   <div id="edit-modal">
-    <h3>Edit Star</h3>
+    <h3>Edit Solar System</h3>
     <input type="hidden" id="edit-star-id">
     <label for="edit-star-name">Name</label>
     <input type="text" id="edit-star-name">
@@ -776,8 +773,10 @@
     <span id="solar-system-close" title="Close">&times;</span>
     <h3 id="solar-system-title">Solar System</h3>
     <canvas id="solar-system-canvas" width="560" height="480"></canvas>
-    <button class="btn" id="btn-solar-recenter">Recenter</button>
-    <button class="btn" id="btn-solar-edit-star">Edit Star</button>
+    <div class="btn-row-bottom">
+      <button class="btn" id="btn-solar-recenter">Recenter</button>
+      <button class="btn" id="btn-solar-edit-star">Edit Solar System</button>
+    </div>
   </div>
 </div>
 
@@ -2242,7 +2241,7 @@ function drawSolarSystem(star) {
     ctx.font = '14px Arial';
     ctx.fillStyle = '#556677';
     ctx.textAlign = 'center';
-    ctx.fillText('No planets — use Edit Star to add planets', baseCX, baseCY + 60);
+    ctx.fillText('No planets — use Edit Solar System to add planets', baseCX, baseCY + 60);
   }
 
   // Zoom indicator
@@ -2320,7 +2319,7 @@ document.getElementById('solar-system-canvas').addEventListener('dblclick', (e) 
   }
 });
 
-// Edit Star button in solar system popup
+// Edit Solar System button in solar system popup
 document.getElementById('btn-solar-recenter').addEventListener('click', () => {
   ssZoom = 1;
   ssPanX = 0;
