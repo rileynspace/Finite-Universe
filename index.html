@@ -579,7 +579,8 @@
 
 <!-- Tools Panel -->
 <div id="tools-panel" class="panel">
-  <h3>Tools</h3>
+  <h3 class="panel-toggle" data-target="tools-panel-body">Tools</h3>
+  <div id="tools-panel-body" class="panel-body">
   <button class="btn" id="btn-unit-toggle">Units: ly</button>
   <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:10px 0 8px;">
   <button class="btn" id="btn-measure">Measure Distance</button>
@@ -596,6 +597,7 @@
   <button class="btn" id="btn-import">Import JSON</button>
   <button class="btn danger" id="btn-clear-all">Clear All</button>
   <input type="file" id="file-input" accept=".json">
+  </div>
 </div>
 
 <!-- Star Tooltip -->
@@ -2690,7 +2692,7 @@ function updateZoneDropdowns() {
 
 // ── Export / Import ──────────────────────────────────
 document.getElementById('btn-export').addEventListener('click', () => {
-  const data = JSON.stringify({ stars, zones, planets }, null, 2);
+  const data = JSON.stringify({ stars, zones, planets, starFolders }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2712,51 +2714,82 @@ document.getElementById('file-input').addEventListener('change', (e) => {
     try {
       const imported = JSON.parse(ev.target.result);
 
+      // Map old IDs to new IDs for zone/star/planet references
+      const zoneIdMap = {};
+      const starIdMap = {};
+
       if (Array.isArray(imported)) {
+        // Simple array of stars
         for (const s of imported) {
           if (s.name && s.x !== undefined && s.y !== undefined && s.z !== undefined) {
-            addStar(s.name, s.x, s.y, s.z);
+            const star = { id: nextStarId++, name: s.name, x: parseFloat(s.x), y: parseFloat(s.y), z: parseFloat(s.z), zoneId: null, size: parseFloat(s.size) || DEFAULT_STAR_SIZE };
+            stars.push(star);
           }
         }
       } else if (imported.stars) {
+        // Import zones first
         if (imported.zones && Array.isArray(imported.zones)) {
           for (const z of imported.zones) {
             if (z.name && z.color) {
-              const newZone = addZone(z.name, z.color);
-              newZone._oldId = z.id;
-              newZone._oldStarIds = z.starIds || [];
+              const newZone = { id: nextZoneId++, name: z.name, color: z.color, starIds: [] };
+              zoneIdMap[z.id] = newZone.id;
+              zones.push(newZone);
             }
           }
         }
+        // Import folders
+        if (imported.starFolders && Array.isArray(imported.starFolders)) {
+          const folderIdMap = {};
+          for (const f of imported.starFolders) {
+            const newFolder = { id: nextFolderId++, name: f.name, collapsed: f.collapsed || false };
+            folderIdMap[f.id] = newFolder.id;
+            starFolders.push(newFolder);
+          }
+          // Patch folderId references on stars before import
+          if (Array.isArray(imported.stars)) {
+            for (const s of imported.stars) {
+              if (s.folderId) s._newFolderId = folderIdMap[s.folderId] || null;
+            }
+          }
+        }
+        // Import stars
         if (Array.isArray(imported.stars)) {
           for (const s of imported.stars) {
             if (s.name && s.x !== undefined && s.y !== undefined && s.z !== undefined) {
-              let zoneId = null;
-              if (s.zoneId) {
-                const matchZone = zones.find(z => z._oldId === s.zoneId);
-                if (matchZone) zoneId = matchZone.id;
+              const zoneId = s.zoneId ? (zoneIdMap[s.zoneId] || null) : null;
+              const star = { id: nextStarId++, name: s.name, x: parseFloat(s.x), y: parseFloat(s.y), z: parseFloat(s.z), zoneId, size: parseFloat(s.size) || DEFAULT_STAR_SIZE, folderId: s._newFolderId || s.folderId || null };
+              starIdMap[s.id] = star.id;
+              stars.push(star);
+              if (zoneId) {
+                const zone = zones.find(z => z.id === zoneId);
+                if (zone && !zone.starIds.includes(star.id)) zone.starIds.push(star.id);
               }
-              addStar(s.name, s.x, s.y, s.z, zoneId);
             }
           }
-        }
-        for (const z of zones) {
-          delete z._oldId;
-          delete z._oldStarIds;
         }
         // Import planets
         if (imported.planets && Array.isArray(imported.planets)) {
           for (const p of imported.planets) {
             if (p.name && p.starId !== undefined && p.orbitalRadius !== undefined) {
-              // Find matching star by old ID
-              const matchStar = stars.find(s => s.name === (imported.stars.find(is => is.id === p.starId) || {}).name);
-              if (matchStar) {
-                addPlanet(p.name, matchStar.id, p.orbitalRadius, p.orbitalAngle || 0, p.classification || 'terrestrial');
+              const newStarId = starIdMap[p.starId];
+              if (newStarId) {
+                const defaultSize = (PLANET_CLASSIFICATIONS[p.classification] || PLANET_CLASSIFICATIONS.terrestrial).defaultSize;
+                const planet = { id: nextPlanetId++, name: p.name, starId: newStarId, orbitalRadius: parseFloat(p.orbitalRadius), orbitalAngle: parseFloat(p.orbitalAngle || 0), classification: p.classification || 'terrestrial', size: parseFloat(p.size) || defaultSize };
+                planets.push(planet);
               }
             }
           }
         }
       }
+
+      // Rebuild everything once
+      rebuildStarMeshes();
+      rebuildPlanetMeshes();
+      rebuildZoneMeshes();
+      updateStarList();
+      updateZoneList();
+      updateZoneDropdowns();
+      saveToLocalStorage();
     } catch (err) {
       alert('Invalid JSON file: ' + err.message);
     }
@@ -2770,9 +2803,11 @@ document.getElementById('btn-clear-all').addEventListener('click', () => {
   stars = [];
   zones = [];
   planets = [];
+  starFolders = [];
   nextStarId = 1;
   nextZoneId = 1;
   nextPlanetId = 1;
+  nextFolderId = 1;
   measureSelection = [];
   clearMeasureLine();
   rebuildStarMeshes();
@@ -2789,9 +2824,11 @@ function saveToLocalStorage() {
   localStorage.setItem('universe-map-stars', JSON.stringify(stars));
   localStorage.setItem('universe-map-zones', JSON.stringify(zones));
   localStorage.setItem('universe-map-planets', JSON.stringify(planets));
+  localStorage.setItem('universe-map-starFolders', JSON.stringify(starFolders));
   localStorage.setItem('universe-map-nextStarId', nextStarId);
   localStorage.setItem('universe-map-nextZoneId', nextZoneId);
   localStorage.setItem('universe-map-nextPlanetId', nextPlanetId);
+  localStorage.setItem('universe-map-nextFolderId', nextFolderId);
 }
 
 function loadFromLocalStorage() {
@@ -2799,9 +2836,11 @@ function loadFromLocalStorage() {
     const starData = localStorage.getItem('universe-map-stars');
     const zoneData = localStorage.getItem('universe-map-zones');
     const planetData = localStorage.getItem('universe-map-planets');
+    const folderData = localStorage.getItem('universe-map-starFolders');
     const nsid = localStorage.getItem('universe-map-nextStarId');
     const nzid = localStorage.getItem('universe-map-nextZoneId');
     const npid = localStorage.getItem('universe-map-nextPlanetId');
+    const nfid = localStorage.getItem('universe-map-nextFolderId');
 
     if (zoneData) {
       zones = JSON.parse(zoneData);
@@ -2814,6 +2853,10 @@ function loadFromLocalStorage() {
     if (planetData) {
       planets = JSON.parse(planetData);
       nextPlanetId = npid ? parseInt(npid) : (planets.length ? Math.max(...planets.map(p => p.id)) + 1 : 1);
+    }
+    if (folderData) {
+      starFolders = JSON.parse(folderData);
+      nextFolderId = nfid ? parseInt(nfid) : (starFolders.length ? Math.max(...starFolders.map(f => f.id)) + 1 : 1);
     }
 
     rebuildStarMeshes();
