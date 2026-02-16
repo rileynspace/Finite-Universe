@@ -789,6 +789,8 @@ const STAR_MIN_WORLD = STAR_MIN_AU * LY_PER_AU * PX_PER_LY;
 const STAR_SCREEN_SIZE = 16;   // star sprite diameter in screen pixels
 const LABEL_SCREEN_WIDTH = 120; // name label width in screen pixels
 const LABEL_SCREEN_HEIGHT = 30; // name label height in screen pixels
+const STAR_LABEL_VISIBLE_DIST = lyToWorld(50);  // star names visible within 50 ly
+const STAR_LABEL_FADE_DIST = lyToWorld(10);     // fade in over 10 ly
 const ZONE_LABEL_SCREEN_WIDTH = 160;  // zone label width in screen pixels
 const ZONE_LABEL_SCREEN_HEIGHT = 40;  // zone label height in screen pixels
 
@@ -2329,11 +2331,23 @@ document.getElementById('btn-bulk-generate').addEventListener('click', () => {
     return;
   }
 
-  // Add stars
+  // Add stars in batch (no per-star rebuild)
   for (let i = 0; i < placed.length; i++) {
     const p = placed[i];
-    addStar(`${groupName} ${i + 1}`, p.x, p.y, p.z, zoneId);
+    const star = { id: nextStarId++, name: `${groupName} ${i + 1}`, x: p.x, y: p.y, z: p.z, zoneId, size: DEFAULT_STAR_SIZE };
+    stars.push(star);
+    if (zoneId) {
+      const zone = zones.find(z => z.id === zoneId);
+      if (zone && !zone.starIds.includes(star.id)) zone.starIds.push(star.id);
+    }
   }
+  // Rebuild everything once
+  rebuildStarMeshes();
+  rebuildZoneMeshes();
+  updateStarList();
+  updateZoneList();
+  updateZoneDropdowns();
+  saveToLocalStorage();
 
   statusEl.textContent = `Added ${placed.length} of ${count} stars.`;
   if (placed.length < count) {
@@ -2630,15 +2644,24 @@ function animate() {
 
     const label = nameSprites.children[i];
     if (label) {
-      const lw = screenToWorld(LABEL_SCREEN_WIDTH, dist);
-      const lh = screenToWorld(LABEL_SCREEN_HEIGHT, dist);
-      label.scale.set(lw, lh, 1);
-      // Position label just above the star sprite
-      label.position.set(
-        starSprite.position.x,
-        starSprite.position.y + s * 0.6 + lh * 0.5,
-        starSprite.position.z
-      );
+      if (dist > STAR_LABEL_VISIBLE_DIST) {
+        label.visible = false;
+      } else {
+        label.visible = true;
+        const lw = screenToWorld(LABEL_SCREEN_WIDTH, dist);
+        const lh = screenToWorld(LABEL_SCREEN_HEIGHT, dist);
+        // Fade in as camera approaches
+        const fadeStart = STAR_LABEL_VISIBLE_DIST;
+        const fadeEnd = STAR_LABEL_VISIBLE_DIST - STAR_LABEL_FADE_DIST;
+        const opacity = dist <= fadeEnd ? 1 : 1 - (dist - fadeEnd) / STAR_LABEL_FADE_DIST;
+        label.material.opacity = opacity;
+        label.scale.set(lw, lh, 1);
+        label.position.set(
+          starSprite.position.x,
+          starSprite.position.y + s * 0.6 + lh * 0.5,
+          starSprite.position.z
+        );
+      }
     }
   }
 
