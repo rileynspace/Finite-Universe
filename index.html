@@ -512,9 +512,19 @@
     color: #667799;
     line-height: 1.6;
   }
+  /* Selection box overlay */
+  #select-box {
+    position: fixed;
+    border: 1px solid #7ab4ff;
+    background: rgba(60,100,220,0.15);
+    pointer-events: none;
+    display: none;
+    z-index: 9999;
+  }
 </style>
 </head>
 <body>
+<div id="select-box"></div>
 
 <!-- Add Star Panel -->
 <div id="left-panel-stack">
@@ -908,6 +918,9 @@ let measureMode = false;
 let measureSelection = [];
 let measureLine = null;
 let measureLabel = null;
+let isDragSelecting = false;
+let dragStartX = 0, dragStartY = 0;
+let dragMoved = false;
 
 // ── Three.js Setup ────────────────────────────────────
 const scene = new THREE.Scene();
@@ -1695,8 +1708,69 @@ renderer.domElement.addEventListener('mousemove', (e) => {
   }
 });
 
+// ── Box Selection (left-click drag) ──────────────────
+const selectBox = document.getElementById('select-box');
+
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (e.button === 0 && !measureMode) {
+    isDragSelecting = true;
+    dragMoved = false;
+    dragStartX = e.clientX;
+    dragStartY = e.clientY;
+  }
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!isDragSelecting) return;
+  const dx = e.clientX - dragStartX;
+  const dy = e.clientY - dragStartY;
+  if (!dragMoved && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+    dragMoved = true;
+  }
+  if (dragMoved) {
+    const x = Math.min(e.clientX, dragStartX);
+    const y = Math.min(e.clientY, dragStartY);
+    const w = Math.abs(dx);
+    const h = Math.abs(dy);
+    selectBox.style.left = x + 'px';
+    selectBox.style.top = y + 'px';
+    selectBox.style.width = w + 'px';
+    selectBox.style.height = h + 'px';
+    selectBox.style.display = 'block';
+  }
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (e.button !== 0 || !isDragSelecting) return;
+  isDragSelecting = false;
+  if (dragMoved) {
+    const x1 = Math.min(e.clientX, dragStartX);
+    const y1 = Math.min(e.clientY, dragStartY);
+    const x2 = Math.max(e.clientX, dragStartX);
+    const y2 = Math.max(e.clientY, dragStartY);
+    const camDist = camera.position.distanceTo(controls.target);
+    const maxSelectDist = camDist * 3;
+    if (!e.shiftKey) selectedStarIds.clear();
+    for (const sprite of starGroup.children) {
+      const pos = sprite.position.clone().project(camera);
+      // Skip stars behind camera
+      if (pos.z > 1) continue;
+      const screenX = (pos.x * 0.5 + 0.5) * window.innerWidth;
+      const screenY = (-pos.y * 0.5 + 0.5) * window.innerHeight;
+      if (screenX >= x1 && screenX <= x2 && screenY >= y1 && screenY <= y2) {
+        if (camera.position.distanceTo(sprite.position) <= maxSelectDist) {
+          selectedStarIds.add(sprite.userData.starId);
+        }
+      }
+    }
+    highlightStarInList();
+    selectBox.style.display = 'none';
+  }
+});
+
 // Left-click: measure mode selection OR star selection
 renderer.domElement.addEventListener('click', (e) => {
+  if (dragMoved) return;
   if (!measureMode) {
     // Star selection in 3D view
     const star = getIntersectedStar(e);
