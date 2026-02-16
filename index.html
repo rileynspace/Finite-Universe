@@ -236,6 +236,59 @@
   .star-entry:hover .delete-star { opacity: 1; }
 
   /* Edit Star Modal */
+  #solar-system-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 200;
+    justify-content: center;
+    align-items: center;
+  }
+  #solar-system-overlay.visible { display: flex; }
+  #solar-system-popup {
+    position: relative;
+    background: rgba(10, 15, 30, 0.97);
+    border: 1px solid rgba(100, 140, 255, 0.4);
+    border-radius: 10px;
+    padding: 24px;
+    width: 610px;
+    backdrop-filter: blur(10px);
+  }
+  #solar-system-popup h3 {
+    margin: 0 0 12px 0;
+    color: #7ab4ff;
+    font-size: 16px;
+  }
+  #solar-system-canvas {
+    display: block;
+    width: 560px;
+    height: 480px;
+    background: rgba(5, 8, 18, 0.8);
+    border-radius: 6px;
+    border: 1px solid rgba(100, 140, 255, 0.15);
+  }
+  #solar-system-close {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    color: #ff6666;
+    font-size: 22px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  #solar-system-close:hover { color: #ff9999; }
+  #btn-solar-recenter {
+    position: absolute;
+    bottom: 28px;
+    right: 120px;
+  }
+  #btn-solar-edit-star {
+    position: absolute;
+    bottom: 28px;
+    right: 28px;
+  }
+
   #edit-overlay, #edit-zone-overlay, #edit-planet-overlay {
     display: none;
     position: fixed;
@@ -521,6 +574,17 @@
   </div>
 </div>
 
+<!-- Solar System Popup -->
+<div id="solar-system-overlay">
+  <div id="solar-system-popup">
+    <span id="solar-system-close" title="Close">&times;</span>
+    <h3 id="solar-system-title">Solar System</h3>
+    <canvas id="solar-system-canvas" width="560" height="480"></canvas>
+    <button class="btn" id="btn-solar-recenter">Recenter</button>
+    <button class="btn" id="btn-solar-edit-star">Edit Star</button>
+  </div>
+</div>
+
 <!-- Edit Zone Modal -->
 <div id="edit-zone-overlay">
   <div id="edit-modal">
@@ -767,10 +831,8 @@ const nameSprites = new THREE.Group();
 scene.add(nameSprites);
 const zoneGroup = new THREE.Group();
 scene.add(zoneGroup);
-const planetGroup = new THREE.Group();
-scene.add(planetGroup);
+const planetGroup = new THREE.Group();  // kept for data, not added to scene
 const planetLabelGroup = new THREE.Group();
-scene.add(planetLabelGroup);
 
 // Selection ring for highlighted star
 function createSelectionRingTexture() {
@@ -1035,6 +1097,9 @@ function rebuildPlanetMeshes() {
     label.visible = false;
     planetLabelGroup.add(label);
   }
+
+  // Refresh solar system popup if open
+  if (solarSystemStarId !== null) redrawSolarSystem();
 }
 
 // ── Star CRUD ────────────────────────────────────────
@@ -1358,12 +1423,10 @@ renderer.domElement.addEventListener('click', (e) => {
   }
 });
 
-// Double-click: open edit modal (planet or star)
+// Double-click: open solar system popup
 renderer.domElement.addEventListener('dblclick', (e) => {
-  const planet = getIntersectedPlanet(e);
-  if (planet) { openEditPlanetModal(planet); return; }
   const star = getIntersectedStar(e);
-  if (star) openEditModal(star);
+  if (star) openSolarSystemPopup(star);
 });
 
 // ── Edit Modal ───────────────────────────────────────
@@ -1580,6 +1643,228 @@ document.getElementById('edit-zone-overlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('edit-zone-overlay')) closeEditZoneModal();
 });
 
+// ── Solar System Popup ───────────────────────────────
+let solarSystemStarId = null;
+let solarSystemPlanetPositions = []; // [{planet, cx, cy, radius}] for hit detection
+let ssZoom = 1;
+let ssPanX = 0, ssPanY = 0;
+let ssIsDragging = false, ssDragStartX = 0, ssDragStartY = 0, ssPanStartX = 0, ssPanStartY = 0;
+
+function openSolarSystemPopup(star) {
+  solarSystemStarId = star.id;
+  ssZoom = 1;
+  ssPanX = 0;
+  ssPanY = 0;
+  document.getElementById('solar-system-title').textContent = `${star.name} System`;
+  document.getElementById('solar-system-overlay').classList.add('visible');
+  drawSolarSystem(star);
+}
+
+function closeSolarSystemPopup() {
+  document.getElementById('solar-system-overlay').classList.remove('visible');
+  solarSystemStarId = null;
+  solarSystemPlanetPositions = [];
+}
+
+function redrawSolarSystem() {
+  const star = stars.find(s => s.id === solarSystemStarId);
+  if (star) drawSolarSystem(star);
+}
+
+function drawSolarSystem(star) {
+  const canvas = document.getElementById('solar-system-canvas');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width, h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+
+  const baseCX = w / 2, baseCY = h / 2;
+  const centerX = baseCX + ssPanX, centerY = baseCY + ssPanY;
+  const starPlanets = planets.filter(p => p.starId === star.id);
+  solarSystemPlanetPositions = [];
+
+  // Find max orbital radius for scaling
+  const maxRadius = starPlanets.length > 0
+    ? Math.max(...starPlanets.map(p => p.orbitalRadius))
+    : 1;
+  const baseScale = Math.min(w, h) * 0.4 / maxRadius;
+  const scale = baseScale * ssZoom;
+
+  // Draw orbit circles
+  for (const planet of starPlanets) {
+    const orbitR = planet.orbitalRadius * scale;
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, orbitR, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(100, 140, 255, 0.15)';
+    ctx.setLineDash([4, 6]);
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Orbit radius label
+    ctx.font = '9px Arial';
+    ctx.fillStyle = 'rgba(100, 140, 255, 0.35)';
+    ctx.textAlign = 'left';
+    ctx.fillText(`${planet.orbitalRadius} AU`, centerX + orbitR + 4, centerY - 2);
+  }
+
+  // Draw star
+  const starR = Math.max(6, 12 * ssZoom);
+  const starGrad = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, starR);
+  starGrad.addColorStop(0, '#ffffff');
+  starGrad.addColorStop(0.4, '#ffdd88');
+  starGrad.addColorStop(1, 'rgba(255, 200, 80, 0)');
+  ctx.beginPath();
+  ctx.arc(centerX, centerY, starR, 0, Math.PI * 2);
+  ctx.fillStyle = starGrad;
+  ctx.fill();
+
+  // Draw star name
+  ctx.font = '11px Arial';
+  ctx.fillStyle = '#ffdd88';
+  ctx.textAlign = 'center';
+  ctx.fillText(star.name, centerX, centerY + starR + 14);
+
+  // Draw planets
+  const planetR = Math.max(5, 7 * Math.min(ssZoom, 3));
+  for (const planet of starPlanets) {
+    const classInfo = PLANET_CLASSIFICATIONS[planet.classification] || PLANET_CLASSIFICATIONS.terrestrial;
+    const orbitR = planet.orbitalRadius * scale;
+    const angleRad = (planet.orbitalAngle * Math.PI) / 180;
+    const px = centerX + Math.cos(angleRad) * orbitR;
+    const py = centerY - Math.sin(angleRad) * orbitR; // canvas Y is inverted
+
+    // Planet dot
+    const grad = ctx.createRadialGradient(px, py, 0, px, py, planetR);
+    grad.addColorStop(0, classInfo.css);
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.beginPath();
+    ctx.arc(px, py, planetR, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Solid inner circle
+    ctx.beginPath();
+    ctx.arc(px, py, Math.max(3, 4 * Math.min(ssZoom, 3)), 0, Math.PI * 2);
+    ctx.fillStyle = classInfo.css;
+    ctx.fill();
+
+    // Planet name and info
+    ctx.font = '11px Arial';
+    ctx.fillStyle = '#ddeeff';
+    ctx.textAlign = 'center';
+    ctx.fillText(planet.name, px, py - planetR - 4);
+    ctx.font = '9px Arial';
+    ctx.fillStyle = '#667799';
+    ctx.fillText(`${planet.orbitalRadius} AU · ${classInfo.label}`, px, py + planetR + 12);
+
+    // Store position for hit detection
+    solarSystemPlanetPositions.push({ planet, cx: px, cy: py, radius: planetR + 4 });
+  }
+
+  // "No planets" message
+  if (starPlanets.length === 0) {
+    ctx.font = '14px Arial';
+    ctx.fillStyle = '#556677';
+    ctx.textAlign = 'center';
+    ctx.fillText('No planets — use Edit Star to add planets', baseCX, baseCY + 60);
+  }
+
+  // Zoom indicator
+  ctx.font = '10px Arial';
+  ctx.fillStyle = 'rgba(100, 140, 255, 0.4)';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${ssZoom.toFixed(1)}x`, 8, h - 8);
+}
+
+// Canvas mouse coordinates helper
+function ssCanvasCoords(e) {
+  const canvas = document.getElementById('solar-system-canvas');
+  const rect = canvas.getBoundingClientRect();
+  return {
+    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+  };
+}
+
+// Zoom with scroll wheel
+document.getElementById('solar-system-canvas').addEventListener('wheel', (e) => {
+  e.preventDefault();
+  const zoomFactor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  const oldZoom = ssZoom;
+  ssZoom = Math.max(0.2, Math.min(50, ssZoom * zoomFactor));
+
+  // Zoom toward mouse position
+  const { x: mx, y: my } = ssCanvasCoords(e);
+  const canvas = document.getElementById('solar-system-canvas');
+  const baseCX = canvas.width / 2, baseCY = canvas.height / 2;
+  const ratio = ssZoom / oldZoom;
+  ssPanX = mx - baseCX - ratio * (mx - baseCX - ssPanX);
+  ssPanY = my - baseCY - ratio * (my - baseCY - ssPanY);
+
+  redrawSolarSystem();
+}, { passive: false });
+
+// Pan with click-drag
+document.getElementById('solar-system-canvas').addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    ssIsDragging = true;
+    ssDragStartX = e.clientX;
+    ssDragStartY = e.clientY;
+    ssPanStartX = ssPanX;
+    ssPanStartY = ssPanY;
+    e.preventDefault();
+  }
+});
+
+document.addEventListener('mousemove', (e) => {
+  if (!ssIsDragging) return;
+  const canvas = document.getElementById('solar-system-canvas');
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  ssPanX = ssPanStartX + (e.clientX - ssDragStartX) * scaleX;
+  ssPanY = ssPanStartY + (e.clientY - ssDragStartY) * scaleY;
+  redrawSolarSystem();
+});
+
+document.addEventListener('mouseup', () => {
+  ssIsDragging = false;
+});
+
+// Double-click on planet in solar system canvas
+document.getElementById('solar-system-canvas').addEventListener('dblclick', (e) => {
+  const { x: mx, y: my } = ssCanvasCoords(e);
+
+  for (const pp of solarSystemPlanetPositions) {
+    const dx = mx - pp.cx, dy = my - pp.cy;
+    if (dx * dx + dy * dy <= pp.radius * pp.radius) {
+      closeSolarSystemPopup();
+      openEditPlanetModal(pp.planet);
+      return;
+    }
+  }
+});
+
+// Edit Star button in solar system popup
+document.getElementById('btn-solar-recenter').addEventListener('click', () => {
+  ssZoom = 1;
+  ssPanX = 0;
+  ssPanY = 0;
+  redrawSolarSystem();
+});
+
+document.getElementById('btn-solar-edit-star').addEventListener('click', () => {
+  const star = stars.find(s => s.id === solarSystemStarId);
+  closeSolarSystemPopup();
+  if (star) openEditModal(star);
+});
+
+// Close solar system popup
+document.getElementById('solar-system-close').addEventListener('click', closeSolarSystemPopup);
+document.getElementById('solar-system-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('solar-system-overlay')) closeSolarSystemPopup();
+});
+
 // ── Measure Mode ─────────────────────────────────────
 function setMeasureMode(on) {
   measureMode = on;
@@ -1685,7 +1970,7 @@ function updateStarList() {
     });
     entry.addEventListener('dblclick', (e) => {
       if (e.target.classList.contains('delete-star')) return;
-      openEditModal(star);
+      openSolarSystemPopup(star);
     });
     entry.querySelector('.delete-star').addEventListener('click', (e) => {
       e.stopPropagation();
@@ -1938,39 +2223,6 @@ function animate() {
         starSprite.position.y + s * 0.6 + lh * 0.5,
         starSprite.position.z
       );
-    }
-  }
-
-  // Dynamically size and show/hide planet sprites and labels
-  for (let i = 0; i < planetGroup.children.length; i++) {
-    const pSprite = planetGroup.children[i];
-    const starId = pSprite.userData.starId;
-    // Find the parent star's world position
-    const starSprite = starGroup.children.find(c => c.userData.starId === starId);
-    if (!starSprite) { pSprite.visible = false; continue; }
-
-    const starDist = camera.position.distanceTo(starSprite.position);
-    const visible = starDist < PLANET_VISIBLE_DIST;
-    pSprite.visible = visible;
-
-    const pLabel = planetLabelGroup.children[i];
-    if (pLabel) pLabel.visible = visible;
-
-    if (visible) {
-      const dist = camera.position.distanceTo(pSprite.position);
-      const ps = screenToWorld(PLANET_SCREEN_SIZE, dist);
-      pSprite.scale.set(ps, ps, 1);
-
-      if (pLabel) {
-        const plw = screenToWorld(PLANET_LABEL_SCREEN_WIDTH, dist);
-        const plh = screenToWorld(PLANET_LABEL_SCREEN_HEIGHT, dist);
-        pLabel.scale.set(plw, plh, 1);
-        pLabel.position.set(
-          pSprite.position.x,
-          pSprite.position.y + ps * 0.6 + plh * 0.5,
-          pSprite.position.z
-        );
-      }
     }
   }
 
