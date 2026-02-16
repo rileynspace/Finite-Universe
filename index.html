@@ -642,8 +642,8 @@
     </div>
     <label for="edit-star-size">Size / Radius (AU)</label>
     <input type="number" id="edit-star-size" min="0.00001" step="any">
-    <label for="edit-star-zone">Zone</label>
-    <select id="edit-star-zone"><option value="">None</option></select>
+    <label>Zones</label>
+    <div id="edit-star-zones" style="max-height:80px; overflow-y:auto; margin-top:4px;"></div>
     <label for="edit-star-folder">Folder</label>
     <select id="edit-star-folder"><option value="">None</option></select>
     <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
@@ -888,7 +888,7 @@ const PLANET_CLASSIFICATIONS = {
 const DEFAULT_STAR_SIZE = 0.00465; // Solar radius in AU
 
 // ── State ─────────────────────────────────────────────
-let stars = [];       // { id, name, x, y, z, zoneId, folderId } — coords in light years
+let stars = [];       // { id, name, x, y, z, zoneIds[], folderId } — coords in light years
 let zones = [];       // { id, name, color, starIds[] }
 let planets = [];     // { id, name, starId, orbitalRadius (AU), orbitalAngle (deg), classification }
 let starFolders = []; // { id, name, collapsed }
@@ -1245,6 +1245,100 @@ function rebuildZoneMeshes() {
   }
 }
 
+// ── Auto-Assign Stars to Zones ───────────────────────
+function isPointInConvexHull(point, geometry) {
+  const pos = geometry.getAttribute('position');
+  const idx = geometry.getIndex();
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  const ab = new THREE.Vector3(), ac = new THREE.Vector3(), normal = new THREE.Vector3(), ap = new THREE.Vector3();
+
+  // Compute centroid to determine correct normal orientation
+  const centroid = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    centroid.x += pos.getX(i);
+    centroid.y += pos.getY(i);
+    centroid.z += pos.getZ(i);
+  }
+  centroid.divideScalar(pos.count);
+
+  const faceCount = idx ? idx.count / 3 : pos.count / 3;
+  for (let f = 0; f < faceCount; f++) {
+    const i0 = idx ? idx.getX(f * 3) : f * 3;
+    const i1 = idx ? idx.getX(f * 3 + 1) : f * 3 + 1;
+    const i2 = idx ? idx.getX(f * 3 + 2) : f * 3 + 2;
+    a.fromBufferAttribute(pos, i0);
+    b.fromBufferAttribute(pos, i1);
+    c.fromBufferAttribute(pos, i2);
+    ab.subVectors(b, a);
+    ac.subVectors(c, a);
+    normal.crossVectors(ab, ac);
+    // Ensure normal points outward (away from centroid)
+    ap.subVectors(centroid, a);
+    if (normal.dot(ap) > 0) normal.negate();
+    // Check if point is outside this face
+    ap.subVectors(point, a);
+    if (normal.dot(ap) > 0.001) return false;
+  }
+  return true;
+}
+
+function autoAssignStarsToZones() {
+  let changed = false;
+  const padWorld = lyToWorld(ZONE_PADDING);
+
+  for (const zone of zones) {
+    const zoneStars = stars.filter(s => zone.starIds.includes(s.id));
+    if (zoneStars.length === 0) continue;
+
+    if (zoneStars.length === 1) {
+      // Sphere test: any star within ZONE_PADDING of the single star
+      const seed = zoneStars[0];
+      const sx = lyToWorld(seed.x), sy = lyToWorld(seed.y), sz = lyToWorld(seed.z);
+      for (const star of stars) {
+        if (zone.starIds.includes(star.id)) continue;
+        const dx = lyToWorld(star.x) - sx, dy = lyToWorld(star.y) - sy, dz = lyToWorld(star.z) - sz;
+        if (Math.sqrt(dx * dx + dy * dy + dz * dz) <= padWorld) {
+          if (!star.zoneIds) star.zoneIds = [];
+          if (!star.zoneIds.includes(zone.id)) star.zoneIds.push(zone.id);
+          if (!zone.starIds.includes(star.id)) zone.starIds.push(star.id);
+          changed = true;
+        }
+      }
+    } else {
+      // Convex hull test
+      const points = [];
+      const icoGeo = new THREE.IcosahedronGeometry(padWorld, 1);
+      const icoPos = icoGeo.getAttribute('position');
+      for (const st of zoneStars) {
+        const wx = lyToWorld(st.x), wy = lyToWorld(st.y), wz = lyToWorld(st.z);
+        for (let i = 0; i < icoPos.count; i++) {
+          points.push(new THREE.Vector3(wx + icoPos.getX(i), wy + icoPos.getY(i), wz + icoPos.getZ(i)));
+        }
+      }
+      try {
+        const hullGeo = new ConvexGeometry(points);
+        for (const star of stars) {
+          if (zone.starIds.includes(star.id)) continue;
+          const wp = new THREE.Vector3(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
+          if (isPointInConvexHull(wp, hullGeo)) {
+            if (!star.zoneIds) star.zoneIds = [];
+            if (!star.zoneIds.includes(zone.id)) star.zoneIds.push(zone.id);
+            if (!zone.starIds.includes(star.id)) zone.starIds.push(star.id);
+            changed = true;
+          }
+        }
+      } catch (e) { /* hull failed, skip */ }
+    }
+  }
+
+  if (changed) {
+    rebuildZoneMeshes(); // hull may have grown with new members
+    updateStarList();
+    updateZoneList();
+    saveToLocalStorage();
+  }
+}
+
 // ── Planet Rendering ─────────────────────────────────
 function rebuildPlanetMeshes() {
   while (planetGroup.children.length) planetGroup.remove(planetGroup.children[0]);
@@ -1304,43 +1398,53 @@ function rebuildPlanetMeshes() {
 
 // ── Star CRUD ────────────────────────────────────────
 function addStar(name, x, y, z, zoneId = null, size = DEFAULT_STAR_SIZE) {
-  const star = { id: nextStarId++, name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z), zoneId, size: parseFloat(size) };
+  const zoneIds = zoneId ? [zoneId] : [];
+  const star = { id: nextStarId++, name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z), zoneIds, size: parseFloat(size), folderId: null };
   stars.push(star);
-  if (zoneId) {
-    const zone = zones.find(z => z.id === zoneId);
+  for (const zid of star.zoneIds) {
+    const zone = zones.find(z => z.id === zid);
     if (zone && !zone.starIds.includes(star.id)) zone.starIds.push(star.id);
   }
   rebuildStarMeshes();
   rebuildZoneMeshes();
+  autoAssignStarsToZones();
   updateStarList();
   updateZoneList();
   saveToLocalStorage();
   return star;
 }
 
-function updateStar(id, name, x, y, z, zoneId, size, folderId) {
+function updateStar(id, name, x, y, z, newZoneIds, size, folderId) {
   const star = stars.find(s => s.id === id);
   if (!star) return;
-  const oldZoneId = star.zoneId;
+  const oldZoneIds = star.zoneIds || [];
   star.name = name;
   star.x = parseFloat(x);
   star.y = parseFloat(y);
   star.z = parseFloat(z);
-  star.zoneId = zoneId || null;
   star.size = parseFloat(size) || DEFAULT_STAR_SIZE;
   if (folderId !== undefined) star.folderId = folderId;
 
-  if (oldZoneId && oldZoneId !== zoneId) {
-    const oldZone = zones.find(z => z.id === oldZoneId);
-    if (oldZone) oldZone.starIds = oldZone.starIds.filter(sid => sid !== id);
-  }
-  if (zoneId) {
-    const newZone = zones.find(z => z.id === zoneId);
-    if (newZone && !newZone.starIds.includes(id)) newZone.starIds.push(id);
+  // Sync zone memberships
+  if (newZoneIds !== undefined) {
+    star.zoneIds = newZoneIds;
+    // Remove star from zones it's no longer in
+    for (const oldZid of oldZoneIds) {
+      if (!newZoneIds.includes(oldZid)) {
+        const zone = zones.find(z => z.id === oldZid);
+        if (zone) zone.starIds = zone.starIds.filter(sid => sid !== id);
+      }
+    }
+    // Add star to zones it's newly in
+    for (const newZid of newZoneIds) {
+      const zone = zones.find(z => z.id === newZid);
+      if (zone && !zone.starIds.includes(id)) zone.starIds.push(id);
+    }
   }
 
   rebuildStarMeshes();
   rebuildZoneMeshes();
+  autoAssignStarsToZones();
   updateStarList();
   updateZoneList();
   saveToLocalStorage();
@@ -1348,9 +1452,11 @@ function updateStar(id, name, x, y, z, zoneId, size, folderId) {
 
 function removeStar(id) {
   const star = stars.find(s => s.id === id);
-  if (star && star.zoneId) {
-    const zone = zones.find(z => z.id === star.zoneId);
-    if (zone) zone.starIds = zone.starIds.filter(sid => sid !== id);
+  if (star && star.zoneIds) {
+    for (const zid of star.zoneIds) {
+      const zone = zones.find(z => z.id === zid);
+      if (zone) zone.starIds = zone.starIds.filter(sid => sid !== id);
+    }
   }
   stars = stars.filter(s => s.id !== id);
   planets = planets.filter(p => p.starId !== id);
@@ -1367,7 +1473,7 @@ function removeStar(id) {
 
 // ── Zone CRUD ────────────────────────────────────────
 function addZone(name, color) {
-  const zone = { id: nextZoneId++, name, color, starIds: [] };
+  const zone = { id: nextZoneId++, name, color, starIds: [], hidden: false };
   zones.push(zone);
   updateZoneList();
   updateZoneDropdowns();
@@ -1377,7 +1483,7 @@ function addZone(name, color) {
 
 function removeZone(id) {
   for (const star of stars) {
-    if (star.zoneId === id) star.zoneId = null;
+    if (star.zoneIds) star.zoneIds = star.zoneIds.filter(zid => zid !== id);
   }
   zones = zones.filter(z => z.id !== id);
   rebuildZoneMeshes();
@@ -1563,9 +1669,9 @@ renderer.domElement.addEventListener('mousemove', (e) => {
     hoveredStar = star;
     tooltipName.textContent = star.name;
     tooltipCoords.textContent = `(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)}) ${unitLabel()}`;
-    const zone = star.zoneId ? zones.find(z => z.id === star.zoneId) : null;
+    const starZones = (star.zoneIds || []).map(zid => zones.find(z => z.id === zid)).filter(Boolean);
     const planetCount = planets.filter(p => p.starId === star.id).length;
-    let info = zone ? `Zone: ${zone.name}` : '';
+    let info = starZones.length ? `Zone${starZones.length > 1 ? 's' : ''}: ${starZones.map(z => z.name).join(', ')}` : '';
     if (planetCount > 0) info += `${info ? ' · ' : ''}${planetCount} planet${planetCount !== 1 ? 's' : ''}`;
     tooltipZone.textContent = info;
     tooltip.style.display = 'block';
@@ -1716,13 +1822,9 @@ document.getElementById('ctx-multi-add-zone').addEventListener('click', () => {
         for (const starId of selectedStarIds) {
           const star = stars.find(s => s.id === starId);
           if (!star) continue;
-          // Remove from old zone
-          if (star.zoneId) {
-            const oldZone = zones.find(z => z.id === star.zoneId);
-            if (oldZone) oldZone.starIds = oldZone.starIds.filter(sid => sid !== starId);
-          }
-          // Add to new zone
-          star.zoneId = zone.id;
+          if (!star.zoneIds) star.zoneIds = [];
+          // Add to zone (multi-zone: don't remove from existing)
+          if (!star.zoneIds.includes(zone.id)) star.zoneIds.push(zone.id);
           if (!zone.starIds.includes(starId)) zone.starIds.push(starId);
         }
         rebuildZoneMeshes();
@@ -1762,14 +1864,19 @@ function openEditModal(star) {
   document.getElementById('edit-star-z').value = star.z;
   document.getElementById('edit-star-size').value = star.size || DEFAULT_STAR_SIZE;
 
-  const sel = document.getElementById('edit-star-zone');
-  sel.innerHTML = '<option value="">None</option>';
-  for (const z of zones) {
-    const opt = document.createElement('option');
-    opt.value = z.id;
-    opt.textContent = `${z.name} (${z.color})`;
-    if (star.zoneId === z.id) opt.selected = true;
-    sel.appendChild(opt);
+  const zonesContainer = document.getElementById('edit-star-zones');
+  zonesContainer.innerHTML = '';
+  if (zones.length === 0) {
+    zonesContainer.innerHTML = '<div style="color:#667799; font-size:11px;">No zones created</div>';
+  } else {
+    for (const z of zones) {
+      const colorInfo = ZONE_COLORS[z.color] || ZONE_COLORS.gray;
+      const checked = (star.zoneIds || []).includes(z.id) ? 'checked' : '';
+      const label = document.createElement('label');
+      label.style.cssText = 'display:flex; align-items:center; gap:6px; padding:2px 0; cursor:pointer; font-size:12px; color:#ddeeff;';
+      label.innerHTML = `<input type="checkbox" value="${z.id}" ${checked}><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorInfo.css};"></span>${z.name}`;
+      zonesContainer.appendChild(label);
+    }
   }
 
   const folderSel = document.getElementById('edit-star-folder');
@@ -1889,8 +1996,8 @@ document.getElementById('btn-edit-save').addEventListener('click', () => {
   const x = document.getElementById('edit-star-x').value;
   const y = document.getElementById('edit-star-y').value;
   const z = document.getElementById('edit-star-z').value;
-  const zoneVal = document.getElementById('edit-star-zone').value;
-  const zoneId = zoneVal ? parseInt(zoneVal) : null;
+  const zoneCheckboxes = document.querySelectorAll('#edit-star-zones input[type="checkbox"]:checked');
+  const newZoneIds = [...zoneCheckboxes].map(cb => parseInt(cb.value));
   const folderVal = document.getElementById('edit-star-folder').value;
   const folderId = folderVal ? parseInt(folderVal) : null;
 
@@ -1903,7 +2010,7 @@ document.getElementById('btn-edit-save').addEventListener('click', () => {
   }
 
   const size = parseFloat(document.getElementById('edit-star-size').value) || DEFAULT_STAR_SIZE;
-  updateStar(id, name, xn, yn, zn, zoneId, size, folderId);
+  updateStar(id, name, xn, yn, zn, newZoneIds, size, folderId);
   closeEditModal();
 });
 
@@ -1955,7 +2062,7 @@ function populateEditZoneStarList(zone) {
     entry.querySelector('.remove-from-zone').addEventListener('click', () => {
       // Remove star from zone
       zone.starIds = zone.starIds.filter(sid => sid !== star.id);
-      star.zoneId = null;
+      if (star.zoneIds) star.zoneIds = star.zoneIds.filter(zid => zid !== zone.id);
       populateEditZoneStarList(zone);
       rebuildZoneMeshes();
       updateStarList();
@@ -2426,10 +2533,19 @@ document.getElementById('btn-bulk-generate').addEventListener('click', () => {
     return;
   }
 
+  // Create folder for group if checkbox is checked
+  let bulkFolderId = null;
+  if (document.getElementById('bulk-create-folder').checked && placed.length > 0) {
+    const newFolder = { id: nextFolderId++, name: groupName, collapsed: false };
+    starFolders.push(newFolder);
+    bulkFolderId = newFolder.id;
+  }
+
   // Add stars in batch (no per-star rebuild)
   for (let i = 0; i < placed.length; i++) {
     const p = placed[i];
-    const star = { id: nextStarId++, name: `${groupName} ${i + 1}`, x: p.x, y: p.y, z: p.z, zoneId, size: DEFAULT_STAR_SIZE };
+    const zoneIds = zoneId ? [zoneId] : [];
+    const star = { id: nextStarId++, name: `${groupName} ${i + 1}`, x: p.x, y: p.y, z: p.z, zoneIds, size: DEFAULT_STAR_SIZE, folderId: bulkFolderId };
     stars.push(star);
     if (zoneId) {
       const zone = zones.find(z => z.id === zoneId);
@@ -2439,6 +2555,7 @@ document.getElementById('btn-bulk-generate').addEventListener('click', () => {
   // Rebuild everything once
   rebuildStarMeshes();
   rebuildZoneMeshes();
+  autoAssignStarsToZones();
   updateStarList();
   updateZoneList();
   updateZoneDropdowns();
@@ -2461,16 +2578,15 @@ document.querySelectorAll('.panel-toggle').forEach(h3 => {
 
 // ── Star List UI ─────────────────────────────────────
 function createStarEntry(star) {
-  const zone = star.zoneId ? zones.find(z => z.id === star.zoneId) : null;
+  const starZones = (star.zoneIds || []).map(zid => zones.find(z => z.id === zid)).filter(Boolean);
   const entry = document.createElement('div');
   entry.className = 'star-entry';
   entry.dataset.id = star.id;
 
-  let zoneTag = '';
-  if (zone) {
-    const c = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
-    zoneTag = `<span class="star-zone-tag" style="background:${c.css}">${zone.name}</span>`;
-  }
+  let zoneTag = starZones.map(z => {
+    const c = ZONE_COLORS[z.color] || ZONE_COLORS.gray;
+    return `<span class="star-zone-tag" style="background:${c.css}">${z.name}</span>`;
+  }).join('');
 
   entry.innerHTML = `
     <div>
@@ -2722,7 +2838,7 @@ document.getElementById('file-input').addEventListener('change', (e) => {
         // Simple array of stars
         for (const s of imported) {
           if (s.name && s.x !== undefined && s.y !== undefined && s.z !== undefined) {
-            const star = { id: nextStarId++, name: s.name, x: parseFloat(s.x), y: parseFloat(s.y), z: parseFloat(s.z), zoneId: null, size: parseFloat(s.size) || DEFAULT_STAR_SIZE };
+            const star = { id: nextStarId++, name: s.name, x: parseFloat(s.x), y: parseFloat(s.y), z: parseFloat(s.z), zoneIds: [], size: parseFloat(s.size) || DEFAULT_STAR_SIZE };
             stars.push(star);
           }
         }
@@ -2731,7 +2847,7 @@ document.getElementById('file-input').addEventListener('change', (e) => {
         if (imported.zones && Array.isArray(imported.zones)) {
           for (const z of imported.zones) {
             if (z.name && z.color) {
-              const newZone = { id: nextZoneId++, name: z.name, color: z.color, starIds: [] };
+              const newZone = { id: nextZoneId++, name: z.name, color: z.color, starIds: [], hidden: z.hidden || false };
               zoneIdMap[z.id] = newZone.id;
               zones.push(newZone);
             }
@@ -2756,12 +2872,19 @@ document.getElementById('file-input').addEventListener('change', (e) => {
         if (Array.isArray(imported.stars)) {
           for (const s of imported.stars) {
             if (s.name && s.x !== undefined && s.y !== undefined && s.z !== undefined) {
-              const zoneId = s.zoneId ? (zoneIdMap[s.zoneId] || null) : null;
-              const star = { id: nextStarId++, name: s.name, x: parseFloat(s.x), y: parseFloat(s.y), z: parseFloat(s.z), zoneId, size: parseFloat(s.size) || DEFAULT_STAR_SIZE, folderId: s._newFolderId || s.folderId || null };
+              // Support old zoneId (single) and new zoneIds (array)
+              let zoneIds = [];
+              if (s.zoneIds && Array.isArray(s.zoneIds)) {
+                zoneIds = s.zoneIds.map(zid => zoneIdMap[zid]).filter(Boolean);
+              } else if (s.zoneId) {
+                const mapped = zoneIdMap[s.zoneId];
+                if (mapped) zoneIds = [mapped];
+              }
+              const star = { id: nextStarId++, name: s.name, x: parseFloat(s.x), y: parseFloat(s.y), z: parseFloat(s.z), zoneIds, size: parseFloat(s.size) || DEFAULT_STAR_SIZE, folderId: s._newFolderId || s.folderId || null };
               starIdMap[s.id] = star.id;
               stars.push(star);
-              if (zoneId) {
-                const zone = zones.find(z => z.id === zoneId);
+              for (const zid of zoneIds) {
+                const zone = zones.find(z => z.id === zid);
                 if (zone && !zone.starIds.includes(star.id)) zone.starIds.push(star.id);
               }
             }
@@ -2786,6 +2909,7 @@ document.getElementById('file-input').addEventListener('change', (e) => {
       rebuildStarMeshes();
       rebuildPlanetMeshes();
       rebuildZoneMeshes();
+      autoAssignStarsToZones();
       updateStarList();
       updateZoneList();
       updateZoneDropdowns();
@@ -2853,6 +2977,13 @@ function loadFromLocalStorage() {
     }
     if (starData) {
       stars = JSON.parse(starData);
+      // Migrate old zoneId (single) to zoneIds (array)
+      for (const s of stars) {
+        if (!s.zoneIds) {
+          s.zoneIds = s.zoneId ? [s.zoneId] : [];
+          delete s.zoneId;
+        }
+      }
       nextStarId = nsid ? parseInt(nsid) : (stars.length ? Math.max(...stars.map(s => s.id)) + 1 : 1);
     }
     if (planetData) {
@@ -2867,6 +2998,7 @@ function loadFromLocalStorage() {
     rebuildStarMeshes();
     rebuildPlanetMeshes();
     rebuildZoneMeshes();
+    autoAssignStarsToZones();
     updateStarList();
     updateZoneList();
     updateZoneDropdowns();
