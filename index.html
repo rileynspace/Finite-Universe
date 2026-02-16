@@ -84,12 +84,28 @@
     display: none;
   }
 
-  /* Add Star Panel */
-  #add-panel {
+  /* Left panel stack */
+  #left-panel-stack {
+    position: absolute;
     top: 16px;
     left: 16px;
-    width: 220px;
+    width: 260px;
+    max-height: calc(100vh - 32px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
+    pointer-events: none;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100,140,255,0.3) transparent;
   }
+  #left-panel-stack > .panel {
+    pointer-events: auto;
+    position: relative;
+    width: 100%;
+  }
+
+  /* Add Star Panel */
   .coord-row {
     display: flex;
     gap: 6px;
@@ -115,9 +131,6 @@
 
   /* Zones Panel */
   #zones-panel {
-    top: 340px;
-    left: 16px;
-    width: 220px;
     max-height: 350px;
     overflow: hidden;
     display: flex;
@@ -226,27 +239,10 @@
 
   /* Star List */
   #star-list-panel {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    width: 280px;
     max-height: 250px;
-    background: rgba(10, 15, 30, 0.92);
-    border: 1px solid rgba(100, 140, 255, 0.3);
-    border-radius: 8px;
-    padding: 16px;
-    backdrop-filter: blur(6px);
     overflow: hidden;
     display: flex;
     flex-direction: column;
-  }
-  #star-list-panel h3 {
-    color: #7ab4ff;
-    margin-bottom: 8px;
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    flex-shrink: 0;
   }
   #star-list {
     overflow-y: auto;
@@ -517,6 +513,8 @@
 <body>
 
 <!-- Add Star Panel -->
+<div id="left-panel-stack">
+
 <div id="add-panel" class="panel">
   <h3 class="panel-toggle" data-target="add-panel-body">Add Star</h3>
   <div id="add-panel-body" class="panel-body">
@@ -543,6 +541,42 @@
   </div>
 </div>
 
+<!-- Zones Panel -->
+<div id="zones-panel" class="panel">
+  <h3 class="panel-toggle" data-target="zones-panel-body">Zones</h3>
+  <div id="zones-panel-body" class="panel-body">
+  <label for="zone-name">Name</label>
+  <input type="text" id="zone-name" placeholder="e.g. Federation Space">
+  <label for="zone-color">Color</label>
+  <select id="zone-color">
+    <option value="red">Red</option>
+    <option value="blue">Blue</option>
+    <option value="yellow">Yellow</option>
+    <option value="green">Green</option>
+    <option value="gray">Gray</option>
+  </select>
+  <button class="btn" id="btn-add-zone">Add Zone</button>
+  <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
+  <div id="zone-list"></div>
+  </div>
+</div>
+
+<!-- Star List -->
+<div id="star-list-panel" class="panel">
+  <h3 class="panel-toggle" data-target="star-list-body">Stars (<span id="star-count">0</span>)</h3>
+  <div id="star-list-body" class="panel-body">
+  <div id="star-list-toolbar">
+    <button class="btn" id="btn-add-folder">+ Folder</button>
+    <select id="move-to-folder-select" title="Move selected stars to a folder">
+      <option value="" disabled selected>Move to...</option>
+    </select>
+  </div>
+  <div id="star-list"></div>
+  </div>
+</div>
+
+</div><!-- /left-panel-stack -->
+
 <!-- Tools Panel -->
 <div id="tools-panel" class="panel">
   <h3>Tools</h3>
@@ -564,26 +598,6 @@
   <input type="file" id="file-input" accept=".json">
 </div>
 
-<!-- Zones Panel -->
-<div id="zones-panel" class="panel">
-  <h3 class="panel-toggle" data-target="zones-panel-body">Zones</h3>
-  <div id="zones-panel-body" class="panel-body">
-  <label for="zone-name">Name</label>
-  <input type="text" id="zone-name" placeholder="e.g. Federation Space">
-  <label for="zone-color">Color</label>
-  <select id="zone-color">
-    <option value="red">Red</option>
-    <option value="blue">Blue</option>
-    <option value="yellow">Yellow</option>
-    <option value="green">Green</option>
-    <option value="gray">Gray</option>
-  </select>
-  <button class="btn" id="btn-add-zone">Add Zone</button>
-  <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
-  <div id="zone-list"></div>
-  </div>
-</div>
-
 <!-- Star Tooltip -->
 <div id="star-tooltip">
   <div class="star-name" id="tooltip-name"></div>
@@ -601,20 +615,6 @@
   <div class="ctx-item" id="ctx-multi-add-zone">Add to Zone</div>
   <div id="ctx-zone-submenu" style="display:none; padding:2px 0 2px 10px;"></div>
   <div class="ctx-item ctx-danger" id="ctx-multi-delete">Delete Selected Stars</div>
-</div>
-
-<!-- Star List -->
-<div id="star-list-panel">
-  <h3 class="panel-toggle" data-target="star-list-body">Stars (<span id="star-count">0</span>)</h3>
-  <div id="star-list-body" class="panel-body">
-  <div id="star-list-toolbar">
-    <button class="btn" id="btn-add-folder">+ Folder</button>
-    <select id="move-to-folder-select" title="Move selected stars to a folder">
-      <option value="" disabled selected>Move to...</option>
-    </select>
-  </div>
-  <div id="star-list"></div>
-  </div>
 </div>
 
 <!-- Edit Star Modal -->
