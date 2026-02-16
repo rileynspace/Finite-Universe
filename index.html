@@ -2799,6 +2799,11 @@ document.getElementById('file-input').addEventListener('change', (e) => {
 });
 
 document.getElementById('btn-clear-all').addEventListener('click', () => {
+  if (stars.length || zones.length || planets.length) {
+    if (confirm('Export a save before clearing?')) {
+      document.getElementById('btn-export').click();
+    }
+  }
   if (!confirm('Delete all stars, planets, and zones?')) return;
   stars = [];
   zones = [];
