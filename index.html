@@ -154,8 +154,8 @@
   .zone-entry.zone-hidden .zone-name,
   .zone-entry.zone-hidden .zone-star-count { opacity: 0.4; }
 
-  /* Star Context Menu */
-  #star-context-menu {
+  /* Context Menus */
+  #star-context-menu, #multi-context-menu {
     position: absolute;
     display: none;
     background: rgba(10, 15, 30, 0.97);
@@ -163,19 +163,27 @@
     border-radius: 6px;
     padding: 4px 0;
     z-index: 150;
-    min-width: 140px;
+    min-width: 160px;
     backdrop-filter: blur(6px);
   }
-  #star-context-menu .ctx-item {
+  .ctx-item {
     padding: 7px 14px;
     font-size: 13px;
     color: #ddeeff;
     cursor: pointer;
     transition: background 0.1s;
   }
-  #star-context-menu .ctx-item:hover { background: rgba(60, 100, 220, 0.3); }
-  #star-context-menu .ctx-danger { color: #ff6666; }
-  #star-context-menu .ctx-danger:hover { background: rgba(200, 50, 50, 0.3); }
+  .ctx-item:hover { background: rgba(60, 100, 220, 0.3); }
+  .ctx-danger { color: #ff6666; }
+  .ctx-danger:hover { background: rgba(200, 50, 50, 0.3); }
+  .ctx-zone-option {
+    padding: 5px 14px;
+    font-size: 12px;
+    color: #ddeeff;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .ctx-zone-option:hover { background: rgba(60, 100, 220, 0.3); }
 
   /* Star Info Tooltip */
   #star-tooltip {
@@ -525,6 +533,12 @@
   <div class="ctx-item ctx-danger" id="ctx-delete-star">Delete Star</div>
 </div>
 
+<div id="multi-context-menu">
+  <div class="ctx-item" id="ctx-multi-add-zone">Add to Zone</div>
+  <div id="ctx-zone-submenu" style="display:none; padding:2px 0 2px 10px;"></div>
+  <div class="ctx-item ctx-danger" id="ctx-multi-delete">Delete Selected Stars</div>
+</div>
+
 <!-- Star List -->
 <div id="star-list-panel">
   <h3>Stars (<span id="star-count">0</span>)</h3>
@@ -798,7 +812,7 @@ let planets = [];     // { id, name, starId, orbitalRadius (AU), orbitalAngle (d
 let nextStarId = 1;
 let nextZoneId = 1;
 let nextPlanetId = 1;
-let selectedStarId = null;
+let selectedStarIds = new Set();
 let measureMode = false;
 let measureSelection = [];
 let measureLine = null;
@@ -964,15 +978,19 @@ function createSelectionRingTexture() {
   return new THREE.CanvasTexture(canvas);
 }
 const selectionRingTexture = createSelectionRingTexture();
-const selectionRingMat = new THREE.SpriteMaterial({
-  map: selectionRingTexture,
-  transparent: true,
-  depthTest: false,
-});
-const selectionRing = new THREE.Sprite(selectionRingMat);
-selectionRing.visible = false;
-selectionRing.renderOrder = 999;
-scene.add(selectionRing);
+const selectionRingGroup = new THREE.Group();
+selectionRingGroup.renderOrder = 999;
+scene.add(selectionRingGroup);
+
+function ensureSelectionRings(count) {
+  while (selectionRingGroup.children.length < count) {
+    const mat = new THREE.SpriteMaterial({ map: selectionRingTexture, transparent: true, depthTest: false });
+    const ring = new THREE.Sprite(mat);
+    ring.renderOrder = 999;
+    ring.visible = false;
+    selectionRingGroup.add(ring);
+  }
+}
 
 function createPlanetTexture() {
   const canvas = document.createElement('canvas');
@@ -1251,7 +1269,7 @@ function removeStar(id) {
   stars = stars.filter(s => s.id !== id);
   planets = planets.filter(p => p.starId !== id);
   measureSelection = measureSelection.filter(s => !(s.type === 'star' && s.id === id));
-  if (selectedStarId === id) selectedStarId = null;
+  selectedStarIds.delete(id);
   clearMeasureLine();
   rebuildStarMeshes();
   rebuildPlanetMeshes();
@@ -1481,12 +1499,24 @@ renderer.domElement.addEventListener('click', (e) => {
     // Star selection in 3D view
     const star = getIntersectedStar(e);
     if (star) {
-      selectedStarId = (selectedStarId === star.id) ? null : star.id;
-      highlightStarInList(selectedStarId);
+      if (e.shiftKey) {
+        // Shift+click: toggle in multi-selection
+        if (selectedStarIds.has(star.id)) selectedStarIds.delete(star.id);
+        else selectedStarIds.add(star.id);
+      } else {
+        // Normal click: single select/deselect
+        if (selectedStarIds.size === 1 && selectedStarIds.has(star.id)) {
+          selectedStarIds.clear();
+        } else {
+          selectedStarIds.clear();
+          selectedStarIds.add(star.id);
+        }
+      }
+      highlightStarInList();
     } else {
-      // Clicked empty space — deselect
-      selectedStarId = null;
-      highlightStarInList(null);
+      // Clicked empty space — deselect all
+      selectedStarIds.clear();
+      highlightStarInList();
     }
     return;
   }
@@ -1500,7 +1530,6 @@ renderer.domElement.addEventListener('click', (e) => {
     const star = getIntersectedStar(e);
     if (star) {
       sel = { type: 'star', id: star.id };
-      highlightStarInList(star.id);
     }
   }
   if (!sel) {
@@ -1532,29 +1561,41 @@ renderer.domElement.addEventListener('dblclick', (e) => {
 
 // ── Star Context Menu (right-click) ──────────────────
 const ctxMenu = document.getElementById('star-context-menu');
+const multiCtxMenu = document.getElementById('multi-context-menu');
 let ctxStarId = null;
 
 function closeContextMenu() {
   ctxMenu.style.display = 'none';
+  multiCtxMenu.style.display = 'none';
+  document.getElementById('ctx-zone-submenu').style.display = 'none';
   ctxStarId = null;
 }
 
+function showMenuAt(menu, x, y) {
+  menu.style.display = 'block';
+  const mx = Math.min(x, window.innerWidth - 180);
+  const my = Math.min(y, window.innerHeight - 120);
+  menu.style.left = mx + 'px';
+  menu.style.top = my + 'px';
+}
+
 renderer.domElement.addEventListener('contextmenu', (e) => {
-  e.preventDefault(); // always prevent browser context menu
-  const star = getIntersectedStar(e);
-  if (star) {
-    ctxStarId = star.id;
-    ctxMenu.style.display = 'block';
-    // Position near cursor, keep within viewport
-    const mx = Math.min(e.clientX, window.innerWidth - 160);
-    const my = Math.min(e.clientY, window.innerHeight - 80);
-    ctxMenu.style.left = mx + 'px';
-    ctxMenu.style.top = my + 'px';
+  e.preventDefault();
+  closeContextMenu();
+
+  if (selectedStarIds.size > 1) {
+    // Multi-select context menu
+    showMenuAt(multiCtxMenu, e.clientX, e.clientY);
   } else {
-    closeContextMenu();
+    const star = getIntersectedStar(e);
+    if (star) {
+      ctxStarId = star.id;
+      showMenuAt(ctxMenu, e.clientX, e.clientY);
+    }
   }
 });
 
+// Single star menu actions
 document.getElementById('ctx-view-system').addEventListener('click', () => {
   const star = stars.find(s => s.id === ctxStarId);
   closeContextMenu();
@@ -1569,7 +1610,60 @@ document.getElementById('ctx-delete-star').addEventListener('click', () => {
   }
 });
 
-// Close context menu on any other click
+// Multi-select menu actions
+document.getElementById('ctx-multi-add-zone').addEventListener('click', () => {
+  const submenu = document.getElementById('ctx-zone-submenu');
+  if (submenu.style.display === 'block') {
+    submenu.style.display = 'none';
+    return;
+  }
+  submenu.innerHTML = '';
+  if (zones.length === 0) {
+    submenu.innerHTML = '<div style="padding:5px 14px; font-size:11px; color:#667799;">No zones created</div>';
+  } else {
+    for (const zone of zones) {
+      const colorInfo = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
+      const opt = document.createElement('div');
+      opt.className = 'ctx-zone-option';
+      opt.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colorInfo.css};margin-right:6px;vertical-align:middle;"></span>${zone.name}`;
+      opt.addEventListener('click', () => {
+        for (const starId of selectedStarIds) {
+          const star = stars.find(s => s.id === starId);
+          if (!star) continue;
+          // Remove from old zone
+          if (star.zoneId) {
+            const oldZone = zones.find(z => z.id === star.zoneId);
+            if (oldZone) oldZone.starIds = oldZone.starIds.filter(sid => sid !== starId);
+          }
+          // Add to new zone
+          star.zoneId = zone.id;
+          if (!zone.starIds.includes(starId)) zone.starIds.push(starId);
+        }
+        rebuildZoneMeshes();
+        updateStarList();
+        updateZoneList();
+        saveToLocalStorage();
+        closeContextMenu();
+      });
+      submenu.appendChild(opt);
+    }
+  }
+  submenu.style.display = 'block';
+});
+
+document.getElementById('ctx-multi-delete').addEventListener('click', () => {
+  const count = selectedStarIds.size;
+  closeContextMenu();
+  if (confirm(`Delete ${count} selected star${count !== 1 ? 's' : ''}?`)) {
+    const ids = Array.from(selectedStarIds);
+    for (const id of ids) removeStar(id);
+    selectedStarIds.clear();
+    highlightStarInList();
+  }
+});
+
+// Close context menu on any other click (but not clicks inside the menus)
+multiCtxMenu.addEventListener('click', (e) => e.stopPropagation());
 document.addEventListener('click', closeContextMenu);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeContextMenu(); });
 
@@ -2273,9 +2367,19 @@ function updateStarList() {
     `;
     entry.addEventListener('click', (e) => {
       if (e.target.classList.contains('delete-star')) return;
-      selectedStarId = (selectedStarId === star.id) ? null : star.id;
-      highlightStarInList(selectedStarId);
-      if (selectedStarId) {
+      if (e.shiftKey) {
+        if (selectedStarIds.has(star.id)) selectedStarIds.delete(star.id);
+        else selectedStarIds.add(star.id);
+      } else {
+        if (selectedStarIds.size === 1 && selectedStarIds.has(star.id)) {
+          selectedStarIds.clear();
+        } else {
+          selectedStarIds.clear();
+          selectedStarIds.add(star.id);
+        }
+      }
+      highlightStarInList();
+      if (selectedStarIds.has(star.id)) {
         controls.target.set(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
       }
     });
@@ -2291,9 +2395,9 @@ function updateStarList() {
   }
 }
 
-function highlightStarInList(id) {
+function highlightStarInList() {
   document.querySelectorAll('.star-entry').forEach(el => {
-    el.classList.toggle('selected', parseInt(el.dataset.id) === id);
+    el.classList.toggle('selected', selectedStarIds.has(parseInt(el.dataset.id)));
   });
 }
 
@@ -2556,19 +2660,26 @@ function animate() {
     measureLabel.scale.set(lw, lh, 1);
   }
 
-  // Selection ring around selected star
-  if (selectedStarId !== null) {
-    const starSprite = starGroup.children.find(c => c.userData.starId === selectedStarId);
-    if (starSprite) {
-      selectionRing.visible = true;
-      selectionRing.position.copy(starSprite.position);
+  // Selection rings around selected stars
+  const selIds = Array.from(selectedStarIds);
+  ensureSelectionRings(selIds.length);
+  let ringIdx = 0;
+  for (const id of selIds) {
+    const starSprite = starGroup.children.find(c => c.userData.starId === id);
+    const ring = selectionRingGroup.children[ringIdx];
+    if (starSprite && ring) {
+      ring.visible = true;
+      ring.position.copy(starSprite.position);
       const ringSize = starSprite.scale.x * 3;
-      selectionRing.scale.set(ringSize, ringSize, 1);
-    } else {
-      selectionRing.visible = false;
+      ring.scale.set(ringSize, ringSize, 1);
+    } else if (ring) {
+      ring.visible = false;
     }
-  } else {
-    selectionRing.visible = false;
+    ringIdx++;
+  }
+  // Hide unused rings
+  for (let i = ringIdx; i < selectionRingGroup.children.length; i++) {
+    selectionRingGroup.children[i].visible = false;
   }
 
   renderer.render(scene, camera);
