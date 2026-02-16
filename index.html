@@ -67,6 +67,23 @@
   .btn.danger { background: rgba(200, 50, 50, 0.3); border-color: rgba(255, 80, 80, 0.4); color: #ffaaaa; }
   .btn.danger:hover { background: rgba(200, 50, 50, 0.55); }
 
+  /* Collapsible panels */
+  .panel-toggle {
+    cursor: pointer;
+    user-select: none;
+  }
+  .panel-toggle::before {
+    content: '\25BE '; /* ▾ down arrow */
+    font-size: 10px;
+    margin-right: 4px;
+  }
+  .panel-toggle.collapsed::before {
+    content: '\25B8 '; /* ▸ right arrow */
+  }
+  .panel-body.collapsed {
+    display: none;
+  }
+
   /* Add Star Panel */
   #add-panel {
     top: 16px;
@@ -501,7 +518,8 @@
 
 <!-- Add Star Panel -->
 <div id="add-panel" class="panel">
-  <h3>Add Star</h3>
+  <h3 class="panel-toggle" data-target="add-panel-body">Add Star</h3>
+  <div id="add-panel-body" class="panel-body">
   <label for="star-name">Name</label>
   <input type="text" id="star-name" placeholder="e.g. Sol">
   <div class="coord-row">
@@ -522,6 +540,7 @@
   <select id="star-zone"><option value="">None</option></select>
   <button class="btn" id="btn-add-star">Add Star</button>
   <button class="btn" id="btn-bulk-add" style="margin-top:6px; width:100%; font-size:11px;">Bulk Add Stars</button>
+  </div>
 </div>
 
 <!-- Tools Panel -->
@@ -547,7 +566,8 @@
 
 <!-- Zones Panel -->
 <div id="zones-panel" class="panel">
-  <h3>Zones</h3>
+  <h3 class="panel-toggle" data-target="zones-panel-body">Zones</h3>
+  <div id="zones-panel-body" class="panel-body">
   <label for="zone-name">Name</label>
   <input type="text" id="zone-name" placeholder="e.g. Federation Space">
   <label for="zone-color">Color</label>
@@ -561,6 +581,7 @@
   <button class="btn" id="btn-add-zone">Add Zone</button>
   <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
   <div id="zone-list"></div>
+  </div>
 </div>
 
 <!-- Star Tooltip -->
@@ -584,7 +605,8 @@
 
 <!-- Star List -->
 <div id="star-list-panel">
-  <h3>Stars (<span id="star-count">0</span>)</h3>
+  <h3 class="panel-toggle" data-target="star-list-body">Stars (<span id="star-count">0</span>)</h3>
+  <div id="star-list-body" class="panel-body">
   <div id="star-list-toolbar">
     <button class="btn" id="btn-add-folder">+ Folder</button>
     <select id="move-to-folder-select" title="Move selected stars to a folder">
@@ -592,6 +614,7 @@
     </select>
   </div>
   <div id="star-list"></div>
+  </div>
 </div>
 
 <!-- Edit Star Modal -->
@@ -2423,6 +2446,15 @@ document.getElementById('btn-bulk-generate').addEventListener('click', () => {
   if (placed.length < count) {
     statusEl.textContent += ` Could not place ${count - placed.length} more (min distance constraint).`;
   }
+});
+
+// ── Collapsible Panels ───────────────────────────────
+document.querySelectorAll('.panel-toggle').forEach(h3 => {
+  h3.addEventListener('click', () => {
+    const body = document.getElementById(h3.dataset.target);
+    h3.classList.toggle('collapsed');
+    body.classList.toggle('collapsed');
+  });
 });
 
 // ── Star List UI ─────────────────────────────────────
