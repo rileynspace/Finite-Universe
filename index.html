@@ -99,8 +99,8 @@
   /* Zones Panel */
   #zones-panel {
     top: 340px;
-    right: 16px;
-    width: 240px;
+    left: 16px;
+    width: 220px;
     max-height: 350px;
     overflow: hidden;
     display: flex;
@@ -141,6 +141,18 @@
     transition: opacity 0.15s;
   }
   .zone-entry:hover .delete-zone { opacity: 1; }
+  .zone-entry .toggle-zone {
+    cursor: pointer;
+    font-size: 13px;
+    padding: 0 4px;
+    color: #88aacc;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+  }
+  .zone-entry .toggle-zone:hover { opacity: 1; }
+  .zone-entry .toggle-zone.hidden { color: #556677; }
+  .zone-entry.zone-hidden .zone-name,
+  .zone-entry.zone-hidden .zone-star-count { opacity: 0.4; }
 
   /* Star Info Tooltip */
   #star-tooltip {
@@ -381,7 +393,7 @@
   <button class="btn" id="btn-measure">Measure Distance</button>
   <button class="btn" id="btn-cancel-measure" style="display:none;">Cancel</button>
   <div id="measure-instructions" style="display:none; margin-top:8px; font-size:12px; color:#88aacc;">
-    Click two stars to measure the distance between them.
+    Click two stars or planets to measure the distance between them.
   </div>
   <div id="distance-result">
     <span id="distance-text"></span>
@@ -609,7 +621,7 @@ const ZONE_LABEL_SCREEN_HEIGHT = 40;  // zone label height in screen pixels
 const PLANET_SCREEN_SIZE = 10;       // planet sprite diameter in screen pixels
 const PLANET_LABEL_SCREEN_WIDTH = 90;
 const PLANET_LABEL_SCREEN_HEIGHT = 22;
-const AU_TO_WORLD = 2;               // 1 AU = 2 world units (exaggerated for visibility)
+const AU_TO_WORLD = 20;              // 1 AU = 20 world units (exaggerated for visibility)
 const PLANET_VISIBLE_DIST = lyToWorld(5); // planets visible within 5 ly of parent star
 
 const PLANET_CLASSIFICATIONS = {
@@ -625,6 +637,7 @@ let planets = [];     // { id, name, starId, orbitalRadius (AU), orbitalAngle (d
 let nextStarId = 1;
 let nextZoneId = 1;
 let nextPlanetId = 1;
+let selectedStarId = null;
 let measureMode = false;
 let measureSelection = [];
 let measureLine = null;
@@ -646,7 +659,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(WORLD_SIZE / 2, WORLD_SIZE / 2, WORLD_SIZE / 2);
 controls.enableDamping = true;
 controls.dampingFactor = 0.08;
-controls.minDistance = lyToWorld(2);
+controls.minDistance = 0.1;
 controls.maxDistance = lyToWorld(3500);
 // Swap: right-click = rotate, middle-click = pan
 controls.mouseButtons = {
@@ -759,6 +772,49 @@ scene.add(planetGroup);
 const planetLabelGroup = new THREE.Group();
 scene.add(planetLabelGroup);
 
+// Selection ring for highlighted star
+function createSelectionRingTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  // Outer glow
+  ctx.beginPath();
+  ctx.arc(128, 128, 100, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(255, 180, 40, 0.25)';
+  ctx.lineWidth = 30;
+  ctx.stroke();
+  // Main ring
+  ctx.beginPath();
+  ctx.arc(128, 128, 100, 0, Math.PI * 2);
+  ctx.strokeStyle = '#ffaa22';
+  ctx.lineWidth = 8;
+  ctx.stroke();
+  // Corner brackets for extra visibility
+  const s = 40;
+  ctx.strokeStyle = '#ffcc44';
+  ctx.lineWidth = 5;
+  // Top-left
+  ctx.beginPath(); ctx.moveTo(28, 58); ctx.lineTo(28, 28); ctx.lineTo(58, 28); ctx.stroke();
+  // Top-right
+  ctx.beginPath(); ctx.moveTo(198, 28); ctx.lineTo(228, 28); ctx.lineTo(228, 58); ctx.stroke();
+  // Bottom-left
+  ctx.beginPath(); ctx.moveTo(28, 198); ctx.lineTo(28, 228); ctx.lineTo(58, 228); ctx.stroke();
+  // Bottom-right
+  ctx.beginPath(); ctx.moveTo(198, 228); ctx.lineTo(228, 228); ctx.lineTo(228, 198); ctx.stroke();
+  return new THREE.CanvasTexture(canvas);
+}
+const selectionRingTexture = createSelectionRingTexture();
+const selectionRingMat = new THREE.SpriteMaterial({
+  map: selectionRingTexture,
+  transparent: true,
+  depthTest: false,
+});
+const selectionRing = new THREE.Sprite(selectionRingMat);
+selectionRing.visible = false;
+selectionRing.renderOrder = 999;
+scene.add(selectionRing);
+
 function createPlanetTexture() {
   const canvas = document.createElement('canvas');
   canvas.width = 64;
@@ -835,6 +891,7 @@ function rebuildZoneMeshes() {
   while (zoneGroup.children.length) zoneGroup.remove(zoneGroup.children[0]);
 
   for (const zone of zones) {
+    if (zone.hidden) continue;
     const zoneStars = stars.filter(st => zone.starIds.includes(st.id));
     if (zoneStars.length === 0) continue;
 
@@ -1030,7 +1087,8 @@ function removeStar(id) {
   }
   stars = stars.filter(s => s.id !== id);
   planets = planets.filter(p => p.starId !== id);
-  measureSelection = measureSelection.filter(sid => sid !== id);
+  measureSelection = measureSelection.filter(s => !(s.type === 'star' && s.id === id));
+  if (selectedStarId === id) selectedStarId = null;
   clearMeasureLine();
   rebuildStarMeshes();
   rebuildPlanetMeshes();
@@ -1084,6 +1142,8 @@ function updatePlanet(id, name, orbitalRadius, orbitalAngle, classification) {
 
 function removePlanet(id) {
   planets = planets.filter(p => p.id !== id);
+  measureSelection = measureSelection.filter(s => !(s.type === 'planet' && s.id === id));
+  clearMeasureLine();
   rebuildPlanetMeshes();
   saveToLocalStorage();
 }
@@ -1095,43 +1155,78 @@ function clearMeasureLine() {
   document.getElementById('distance-result').classList.remove('visible');
 }
 
-function drawMeasureLine(s1, s2) {
+// Get world position and name for a measure target { type: 'star'|'planet', id }
+function getMeasureTarget(sel) {
+  if (sel.type === 'star') {
+    const s = stars.find(st => st.id === sel.id);
+    if (!s) return null;
+    return { name: s.name, wx: lyToWorld(s.x), wy: lyToWorld(s.y), wz: lyToWorld(s.z), lyX: s.x, lyY: s.y, lyZ: s.z };
+  } else {
+    const p = planets.find(pl => pl.id === sel.id);
+    if (!p) return null;
+    const star = stars.find(s => s.id === p.starId);
+    if (!star) return null;
+    const angleRad = (p.orbitalAngle * Math.PI) / 180;
+    const orbitWorld = p.orbitalRadius * AU_TO_WORLD;
+    const wx = lyToWorld(star.x) + Math.cos(angleRad) * orbitWorld;
+    const wy = lyToWorld(star.y);
+    const wz = lyToWorld(star.z) + Math.sin(angleRad) * orbitWorld;
+    // Use real AU-to-LY conversion for distance, not the exaggerated visual scale
+    const orbitLy = p.orbitalRadius * LY_PER_AU;
+    const lyX = star.x + Math.cos(angleRad) * orbitLy;
+    const lyY = star.y;
+    const lyZ = star.z + Math.sin(angleRad) * orbitLy;
+    return { name: p.name, wx, wy, wz, lyX, lyY, lyZ };
+  }
+}
+
+function drawMeasureLine(sel1, sel2) {
   clearMeasureLine();
+  const t1 = getMeasureTarget(sel1);
+  const t2 = getMeasureTarget(sel2);
+  if (!t1 || !t2) return;
+
   const geo = new THREE.BufferGeometry();
   geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
-    lyToWorld(s1.x), lyToWorld(s1.y), lyToWorld(s1.z),
-    lyToWorld(s2.x), lyToWorld(s2.y), lyToWorld(s2.z)
+    t1.wx, t1.wy, t1.wz,
+    t2.wx, t2.wy, t2.wz
   ]), 3));
   const mat = new THREE.LineBasicMaterial({ color: 0xffcc44, linewidth: 2, transparent: true, opacity: 0.8 });
   measureLine = new THREE.LineSegments(geo, mat);
   scene.add(measureLine);
 
   // Distance in light years
-  const dx = s2.x - s1.x, dy = s2.y - s1.y, dz = s2.z - s1.z;
+  const dx = t2.lyX - t1.lyX, dy = t2.lyY - t1.lyY, dz = t2.lyZ - t1.lyZ;
   const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
 
-  const mx = lyToWorld((s1.x + s2.x) / 2);
-  const my = lyToWorld((s1.y + s2.y) / 2) + lyToWorld(20);
-  const mz = lyToWorld((s1.z + s2.z) / 2);
+  const mx = (t1.wx + t2.wx) / 2;
+  const my = (t1.wy + t2.wy) / 2 + lyToWorld(20);
+  const mz = (t1.wz + t2.wz) / 2;
+  const distAU = dist * AU_PER_LY;
+  const lyText = `${dist.toFixed(4)} ly`;
+  const auText = `${distAU.toFixed(2)} AU`;
+
   const canvas = document.createElement('canvas');
   canvas.width = 512;
-  canvas.height = 128;
+  canvas.height = 160;
   const ctx = canvas.getContext('2d');
-  ctx.font = 'Bold 40px Arial';
+  ctx.font = 'Bold 34px Arial';
   ctx.fillStyle = '#ffcc44';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.fillText(`${formatDist(dist)} ${unitLabel()}`, 256, 64);
+  ctx.fillText(lyText, 256, 50);
+  ctx.fillText(auText, 256, 110);
   const tex = new THREE.CanvasTexture(canvas);
   const labelMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
   measureLabel = new THREE.Sprite(labelMat);
   measureLabel.position.set(mx, my, mz);
-  measureLabel.scale.set(lyToWorld(120), lyToWorld(30), 1);
+  measureLabel.scale.set(1, 1, 1); // dynamically sized in animate()
+  measureLabel.userData.isMeasureLabel = true;
   scene.add(measureLabel);
 
   const resultEl = document.getElementById('distance-result');
   const textEl = document.getElementById('distance-text');
-  textEl.innerHTML = `<strong>${s1.name}</strong> &rarr; <strong>${s2.name}</strong><br>${formatDist(dist)} ${displayUnit === 'au' ? 'AU' : 'light years'}`;
+  textEl.innerHTML = `<strong>${t1.name}</strong> &rarr; <strong>${t2.name}</strong><br>${lyText} / ${auText}`;
   resultEl.classList.add('visible');
 }
 
@@ -1214,23 +1309,52 @@ renderer.domElement.addEventListener('mousemove', (e) => {
   }
 });
 
-// Left-click: measure mode selection
+// Left-click: measure mode selection OR star selection
 renderer.domElement.addEventListener('click', (e) => {
-  const star = getIntersectedStar(e);
-  if (!star) return;
-
-  if (measureMode) {
-    if (measureSelection.includes(star.id)) return;
-    measureSelection.push(star.id);
-    highlightStarInList(star.id);
-
-    if (measureSelection.length === 2) {
-      const s1 = stars.find(s => s.id === measureSelection[0]);
-      const s2 = stars.find(s => s.id === measureSelection[1]);
-      if (s1 && s2) drawMeasureLine(s1, s2);
-      measureSelection = [];
-      setMeasureMode(false);
+  if (!measureMode) {
+    // Star selection in 3D view
+    const star = getIntersectedStar(e);
+    if (star) {
+      selectedStarId = (selectedStarId === star.id) ? null : star.id;
+      highlightStarInList(selectedStarId);
+    } else {
+      // Clicked empty space — deselect
+      selectedStarId = null;
+      highlightStarInList(null);
     }
+    return;
+  }
+
+  let sel = null;
+  // Check planets first (smaller targets)
+  const planet = getIntersectedPlanet(e);
+  if (planet) {
+    sel = { type: 'planet', id: planet.id };
+  } else {
+    const star = getIntersectedStar(e);
+    if (star) {
+      sel = { type: 'star', id: star.id };
+      highlightStarInList(star.id);
+    }
+  }
+  if (!sel) {
+    // Clicked empty space — clear selection and any existing measurement
+    measureSelection = [];
+    clearMeasureLine();
+    return;
+  }
+
+  // Don't select the same object twice
+  if (measureSelection.length > 0) {
+    const prev = measureSelection[0];
+    if (prev.type === sel.type && prev.id === sel.id) return;
+  }
+  measureSelection.push(sel);
+
+  if (measureSelection.length === 2) {
+    drawMeasureLine(measureSelection[0], measureSelection[1]);
+    measureSelection = [];
+    setMeasureMode(false);
   }
 });
 
@@ -1551,10 +1675,16 @@ function updateStarList() {
       </div>
       <span class="delete-star" title="Delete star">&times;</span>
     `;
-    entry.querySelector('.name').addEventListener('click', () => {
-      controls.target.set(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
+    entry.addEventListener('click', (e) => {
+      if (e.target.classList.contains('delete-star')) return;
+      selectedStarId = (selectedStarId === star.id) ? null : star.id;
+      highlightStarInList(selectedStarId);
+      if (selectedStarId) {
+        controls.target.set(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
+      }
     });
-    entry.addEventListener('dblclick', () => {
+    entry.addEventListener('dblclick', (e) => {
+      if (e.target.classList.contains('delete-star')) return;
       openEditModal(star);
     });
     entry.querySelector('.delete-star').addEventListener('click', (e) => {
@@ -1579,15 +1709,25 @@ function updateZoneList() {
     const colorInfo = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
     const starCount = zone.starIds.length;
     const entry = document.createElement('div');
-    entry.className = 'zone-entry';
+    entry.className = 'zone-entry' + (zone.hidden ? ' zone-hidden' : '');
     entry.innerHTML = `
       <div>
         <span class="zone-color-dot" style="background:${colorInfo.css}"></span>
         <span class="zone-name">${zone.name}</span>
         <span class="zone-star-count">(${starCount} star${starCount !== 1 ? 's' : ''})</span>
       </div>
-      <span class="delete-zone" title="Delete zone">&times;</span>
+      <div>
+        <span class="toggle-zone${zone.hidden ? ' hidden' : ''}" title="${zone.hidden ? 'Show' : 'Hide'} zone">${zone.hidden ? '&#9711;' : '&#9673;'}</span>
+        <span class="delete-zone" title="Delete zone">&times;</span>
+      </div>
     `;
+    entry.querySelector('.toggle-zone').addEventListener('click', (e) => {
+      e.stopPropagation();
+      zone.hidden = !zone.hidden;
+      rebuildZoneMeshes();
+      updateZoneList();
+      saveToLocalStorage();
+    });
     entry.querySelector('.delete-zone').addEventListener('click', () => removeZone(zone.id));
     entry.addEventListener('dblclick', () => openEditZoneModal(zone));
     listEl.appendChild(entry);
@@ -1774,6 +1914,12 @@ function animate() {
   requestAnimationFrame(animate);
   controls.update();
 
+  // Adaptive camera: adjust near clipping plane based on zoom level
+  const camDist = camera.position.distanceTo(controls.target);
+  camera.near = Math.max(0.001, camDist * 0.001);
+  camera.far = Math.max(500000, camDist * 100);
+  camera.updateProjectionMatrix();
+
   // Dynamically size star sprites and name labels relative to viewport
   for (let i = 0; i < starGroup.children.length; i++) {
     const starSprite = starGroup.children[i];
@@ -1837,6 +1983,29 @@ function animate() {
       child.scale.set(lw, lh, 1);
       child.position.y = child.userData.anchorY + lh * 0.8;
     }
+  }
+
+  // Dynamically size measure label
+  if (measureLabel && measureLabel.userData.isMeasureLabel) {
+    const dist = camera.position.distanceTo(measureLabel.position);
+    const lw = screenToWorld(ZONE_LABEL_SCREEN_WIDTH, dist);
+    const lh = screenToWorld(ZONE_LABEL_SCREEN_HEIGHT, dist);
+    measureLabel.scale.set(lw, lh, 1);
+  }
+
+  // Selection ring around selected star
+  if (selectedStarId !== null) {
+    const starSprite = starGroup.children.find(c => c.userData.starId === selectedStarId);
+    if (starSprite) {
+      selectionRing.visible = true;
+      selectionRing.position.copy(starSprite.position);
+      const ringSize = starSprite.scale.x * 3;
+      selectionRing.scale.set(ringSize, ringSize, 1);
+    } else {
+      selectionRing.visible = false;
+    }
+  } else {
+    selectionRing.visible = false;
   }
 
   renderer.render(scene, camera);
