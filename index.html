@@ -391,7 +391,7 @@
   }
   #bulk-add-overlay.visible { display: flex; }
 
-  #edit-overlay, #edit-zone-overlay, #edit-planet-overlay {
+  #edit-overlay, #edit-zone-overlay, #edit-planet-overlay, #add-planet-overlay {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -400,7 +400,7 @@
     justify-content: center;
     align-items: center;
   }
-  #edit-overlay.visible, #edit-zone-overlay.visible, #edit-planet-overlay.visible { display: flex; }
+  #edit-overlay.visible, #edit-zone-overlay.visible, #edit-planet-overlay.visible, #add-planet-overlay.visible { display: flex; }
   #edit-modal {
     background: rgba(10, 15, 30, 0.97);
     border: 1px solid rgba(100, 140, 255, 0.4);
@@ -663,29 +663,6 @@
     <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
     <label>Planets</label>
     <div id="edit-star-planet-list" style="max-height:120px; overflow-y:auto; margin-top:4px;"></div>
-    <div style="margin-top:8px; padding:8px; background:rgba(20,30,60,0.4); border-radius:4px;">
-      <label for="add-planet-name" style="margin-top:0;">New Planet</label>
-      <input type="text" id="add-planet-name" placeholder="Planet name">
-      <div class="edit-coord-row" style="margin-top:6px;">
-        <div>
-          <label for="add-planet-radius">Radius (AU)</label>
-          <input type="number" id="add-planet-radius" placeholder="1" min="0.01" step="any">
-        </div>
-        <div>
-          <label for="add-planet-angle">Angle (°)</label>
-          <input type="number" id="add-planet-angle" placeholder="0" min="0" max="360" step="any">
-        </div>
-      </div>
-      <label for="add-planet-class">Classification</label>
-      <select id="add-planet-class">
-        <option value="terrestrial">Terrestrial</option>
-        <option value="gas_giant">Gas Giant</option>
-        <option value="ice_giant">Ice Giant</option>
-      </select>
-      <label for="add-planet-size">Size / Radius (AU)</label>
-      <input type="number" id="add-planet-size" placeholder="auto" min="0.00001" step="any">
-      <button class="btn" id="btn-add-planet" style="width:100%;">Add Planet</button>
-    </div>
     <div class="btn-row">
       <button class="btn" id="btn-edit-save">Save</button>
       <button class="btn" id="btn-edit-cancel">Cancel</button>
@@ -722,6 +699,7 @@
       <button class="btn" id="btn-edit-planet-save">Save</button>
       <button class="btn" id="btn-edit-planet-cancel">Cancel</button>
     </div>
+    <button class="btn" id="btn-edit-planet-delete" style="width:100%; margin-top:8px; background:rgba(255,60,60,0.15); border-color:rgba(255,80,80,0.4); color:#ff6666;">Delete Planet</button>
   </div>
 </div>
 
@@ -785,8 +763,39 @@
     <canvas id="solar-system-canvas" width="560" height="480"></canvas>
     <div class="btn-row-bottom">
       <button class="btn" id="btn-solar-recenter">Recenter</button>
+      <button class="btn" id="btn-solar-add-planet">Add Planet</button>
       <button class="btn" id="btn-solar-edit-star">Edit Solar System</button>
     </div>
+  </div>
+</div>
+
+<!-- Add Planet Modal -->
+<div id="add-planet-overlay">
+  <div id="edit-modal">
+    <span class="edit-close" id="add-planet-close" title="Close">&times;</span>
+    <h3>Add Planet</h3>
+    <input type="hidden" id="add-planet-star-id">
+    <label for="add-planet-name">Name</label>
+    <input type="text" id="add-planet-name" placeholder="Planet name">
+    <div class="edit-coord-row" style="margin-top:6px;">
+      <div>
+        <label for="add-planet-radius">Radius (AU)</label>
+        <input type="number" id="add-planet-radius" placeholder="1" min="0.01" step="any">
+      </div>
+      <div>
+        <label for="add-planet-angle">Angle (°)</label>
+        <input type="number" id="add-planet-angle" placeholder="0" min="0" max="360" step="any">
+      </div>
+    </div>
+    <label for="add-planet-class">Classification</label>
+    <select id="add-planet-class">
+      <option value="terrestrial">Terrestrial</option>
+      <option value="gas_giant">Gas Giant</option>
+      <option value="ice_giant">Ice Giant</option>
+    </select>
+    <label for="add-planet-size">Size / Radius (AU)</label>
+    <input type="number" id="add-planet-size" placeholder="auto" min="0.00001" step="any">
+    <button class="btn" id="btn-add-planet" style="width:100%; margin-top:10px;">Add Planet</button>
   </div>
 </div>
 
@@ -2006,9 +2015,34 @@ function populateStarPlanetList(star) {
   }
 }
 
-// Add planet button inside star edit modal
+// ── Add Planet Modal ─────────────────────────────────
+function openAddPlanetModal(starId) {
+  document.getElementById('add-planet-star-id').value = starId;
+  document.getElementById('add-planet-name').value = '';
+  document.getElementById('add-planet-radius').value = '';
+  document.getElementById('add-planet-angle').value = '';
+  document.getElementById('add-planet-class').value = 'terrestrial';
+  document.getElementById('add-planet-size').value = '';
+  document.getElementById('add-planet-overlay').classList.add('visible');
+  document.getElementById('add-planet-name').focus();
+}
+
+function closeAddPlanetModal() {
+  document.getElementById('add-planet-overlay').classList.remove('visible');
+}
+
+document.getElementById('btn-solar-add-planet').addEventListener('click', () => {
+  openAddPlanetModal(solarSystemStarId);
+});
+
+document.getElementById('add-planet-close').addEventListener('click', closeAddPlanetModal);
+
+document.getElementById('add-planet-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('add-planet-overlay')) closeAddPlanetModal();
+});
+
 document.getElementById('btn-add-planet').addEventListener('click', () => {
-  const starId = parseInt(document.getElementById('edit-star-id').value);
+  const starId = parseInt(document.getElementById('add-planet-star-id').value);
   const name = document.getElementById('add-planet-name').value.trim();
   const radius = document.getElementById('add-planet-radius').value;
   const angle = document.getElementById('add-planet-angle').value;
@@ -2020,15 +2054,9 @@ document.getElementById('btn-add-planet').addEventListener('click', () => {
   if (isNaN(rn) || rn <= 0) { alert('Orbital radius must be greater than 0.'); return; }
 
   const size = document.getElementById('add-planet-size').value;
-  const star = stars.find(s => s.id === starId);
   addPlanet(name, starId, rn, parseFloat(angle) || 0, classification, size);
-  if (star) populateStarPlanetList(star);
-
-  document.getElementById('add-planet-name').value = '';
-  document.getElementById('add-planet-radius').value = '';
-  document.getElementById('add-planet-angle').value = '';
-  document.getElementById('add-planet-class').value = 'terrestrial';
-  document.getElementById('add-planet-size').value = '';
+  closeAddPlanetModal();
+  redrawSolarSystem();
 });
 
 // ── Edit Planet Modal ────────────────────────────────
@@ -2065,6 +2093,15 @@ document.getElementById('btn-edit-planet-save').addEventListener('click', () => 
 });
 
 document.getElementById('btn-edit-planet-cancel').addEventListener('click', closeEditPlanetModal);
+
+document.getElementById('btn-edit-planet-delete').addEventListener('click', () => {
+  const id = parseInt(document.getElementById('edit-planet-id').value);
+  const planet = planets.find(p => p.id === id);
+  if (!planet || !confirm(`Delete planet "${planet.name}"?`)) return;
+  removePlanet(id);
+  closeEditPlanetModal();
+  redrawSolarSystem();
+});
 
 document.getElementById('edit-planet-overlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('edit-planet-overlay')) closeEditPlanetModal();
@@ -2110,7 +2147,10 @@ document.addEventListener('keydown', (e) => {
     const planetEditOpen = document.getElementById('edit-planet-overlay').classList.contains('visible');
     const zoneEditOpen = document.getElementById('edit-zone-overlay').classList.contains('visible');
     const bulkOpen = document.getElementById('bulk-add-overlay').classList.contains('visible');
-    if (editOpen || planetEditOpen || zoneEditOpen || bulkOpen) {
+    const addPlanetOpen = document.getElementById('add-planet-overlay').classList.contains('visible');
+    if (addPlanetOpen) {
+      closeAddPlanetModal();
+    } else if (editOpen || planetEditOpen || zoneEditOpen || bulkOpen) {
       closeEditModal(); closeEditZoneModal(); closeEditPlanetModal(); closeBulkAddModal();
     } else if (solarSystemStarId !== null) {
       closeSolarSystemPopup();
