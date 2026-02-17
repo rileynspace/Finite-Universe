@@ -843,6 +843,12 @@
   <div id="distance-result">
     <span id="distance-text"></span>
   </div>
+  <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:10px 0 8px;">
+  <button class="btn" id="btn-view-from-star">View from Star</button>
+  <button class="btn" id="btn-cancel-view-star" style="display:none;">Exit View</button>
+  <div id="view-star-instructions" style="display:none; margin-top:8px; font-size:12px; color:#88aacc;">
+    Click a star to view from its position.
+  </div>
   <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:14px 0 10px;">
   <h3>Data</h3>
   <button class="btn" id="btn-export">Export JSON</button>
@@ -1263,6 +1269,10 @@ let selectedStarIds = new Set();
 let lastClickedStarId = null;
 let measureMode = false;
 let measureSelection = [];
+let viewFromStarMode = false;
+let viewFromStarActive = false;
+let viewFromStarId = null;
+let savedCameraState = null;
 let measureLine = null;
 let measureLabel = null;
 let isDragSelecting = false;
@@ -2268,7 +2278,7 @@ renderer.domElement.addEventListener('mousemove', (e) => {
 const selectBox = document.getElementById('select-box');
 
 renderer.domElement.addEventListener('mousedown', (e) => {
-  if (e.button === 0 && !measureMode) {
+  if (e.button === 0 && !measureMode && !viewFromStarActive) {
     isDragSelecting = true;
     dragMoved = false;
     dragStartX = e.clientX;
@@ -2327,6 +2337,11 @@ document.addEventListener('mouseup', (e) => {
 // Left-click: measure mode selection OR star selection
 renderer.domElement.addEventListener('click', (e) => {
   if (dragMoved) return;
+  if (viewFromStarMode) {
+    const star = getIntersectedStar(e);
+    if (star) activateViewFromStar(star.id);
+    return;
+  }
   if (!measureMode) {
     // Star selection in 3D view
     const star = getIntersectedStar(e);
@@ -3299,6 +3314,64 @@ document.getElementById('btn-unit-toggle').addEventListener('click', () => {
 document.getElementById('btn-cancel-measure').addEventListener('click', () => {
   setMeasureMode(false);
   clearMeasureLine();
+});
+
+// ── View from Star Mode ──────────────────────────────
+function setViewFromStarMode(on) {
+  viewFromStarMode = on;
+  document.getElementById('btn-view-from-star').style.display = on ? 'none' : '';
+  document.getElementById('btn-cancel-view-star').style.display = on ? '' : 'none';
+  document.getElementById('view-star-instructions').style.display = on ? 'block' : 'none';
+}
+
+function activateViewFromStar(starId) {
+  const star = stars.find(s => s.id === starId);
+  if (!star) return;
+  savedCameraState = {
+    position: camera.position.clone(),
+    target: controls.target.clone(),
+    minDist: controls.minDistance,
+    maxDist: controls.maxDistance
+  };
+  const starPos = new THREE.Vector3(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
+  camera.position.copy(starPos);
+  const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+  controls.target.copy(starPos).add(forward);
+  controls.enablePan = false;
+  controls.minDistance = 0;
+  controls.maxDistance = lyToWorld(50);
+  controls.update();
+  viewFromStarActive = true;
+  viewFromStarMode = false;
+  viewFromStarId = starId;
+  document.getElementById('view-star-instructions').style.display = 'none';
+  document.getElementById('btn-view-from-star').style.display = 'none';
+  document.getElementById('btn-cancel-view-star').style.display = '';
+}
+
+function deactivateViewFromStar() {
+  if (savedCameraState) {
+    camera.position.copy(savedCameraState.position);
+    controls.target.copy(savedCameraState.target);
+    controls.minDistance = savedCameraState.minDist;
+    controls.maxDistance = savedCameraState.maxDist;
+    controls.enablePan = true;
+    controls.update();
+  }
+  viewFromStarActive = false;
+  viewFromStarId = null;
+  savedCameraState = null;
+  document.getElementById('btn-view-from-star').style.display = '';
+  document.getElementById('btn-cancel-view-star').style.display = 'none';
+}
+
+document.getElementById('btn-view-from-star').addEventListener('click', () => {
+  if (measureMode) { setMeasureMode(false); clearMeasureLine(); }
+  setViewFromStarMode(true);
+});
+document.getElementById('btn-cancel-view-star').addEventListener('click', () => {
+  if (viewFromStarActive) deactivateViewFromStar();
+  else setViewFromStarMode(false);
 });
 
 // ── Add Star Button ──────────────────────────────────
