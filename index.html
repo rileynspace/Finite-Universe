@@ -652,11 +652,16 @@
   #timeline-bar {
     position: fixed;
     bottom: 0;
-    left: 0;
-    right: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 600px;
+    width: fit-content;
     height: 44px;
     background: rgba(10, 15, 30, 0.92);
     border-top: 1px solid rgba(100, 140, 255, 0.3);
+    border-left: 1px solid rgba(100, 140, 255, 0.3);
+    border-right: 1px solid rgba(100, 140, 255, 0.3);
+    border-radius: 8px 8px 0 0;
     backdrop-filter: blur(6px);
     display: none;
     align-items: center;
@@ -732,6 +737,9 @@
     transition: opacity 0.15s;
   }
   .era-entry:hover .delete-era { opacity: 1; }
+  .era-entry[draggable="true"] { cursor: grab; }
+  .era-entry.dragging { opacity: 0.4; }
+  .era-entry.drag-over { border-top: 2px solid #7ab4ff; }
 
   /* Era checkboxes in edit zone modal */
   .era-checkbox-entry {
@@ -1975,11 +1983,41 @@ function updateEraList() {
   for (const era of eras) {
     const entry = document.createElement('div');
     entry.className = 'era-entry';
+    entry.draggable = true;
+    entry.dataset.eraId = era.id;
     entry.innerHTML = `
       <span>${era.name}</span>
       <span class="delete-era" title="Delete era">&times;</span>
     `;
     entry.querySelector('.delete-era').addEventListener('click', () => removeEra(era.id));
+    entry.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', era.id);
+      entry.classList.add('dragging');
+    });
+    entry.addEventListener('dragend', () => {
+      entry.classList.remove('dragging');
+    });
+    entry.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      entry.classList.add('drag-over');
+    });
+    entry.addEventListener('dragleave', () => {
+      entry.classList.remove('drag-over');
+    });
+    entry.addEventListener('drop', (e) => {
+      e.preventDefault();
+      entry.classList.remove('drag-over');
+      const fromId = +e.dataTransfer.getData('text/plain');
+      const toId = +entry.dataset.eraId;
+      if (fromId === toId) return;
+      const fromIdx = eras.findIndex(er => er.id === fromId);
+      const [moved] = eras.splice(fromIdx, 1);
+      const toIdx = eras.findIndex(er => er.id === toId);
+      eras.splice(toIdx, 0, moved);
+      updateEraList();
+      updateTimelineBar();
+      saveToLocalStorage();
+    });
     listEl.appendChild(entry);
   }
 }
