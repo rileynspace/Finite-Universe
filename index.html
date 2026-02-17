@@ -81,7 +81,7 @@
     content: '\25B8 '; /* ▸ right arrow */
   }
   .panel-body.collapsed {
-    display: none;
+    display: none !important;
   }
 
   /* Left panel stack */
@@ -406,7 +406,7 @@
   }
   #bulk-add-overlay.visible { display: flex; }
 
-  #edit-overlay, #edit-zone-overlay, #edit-planet-overlay, #add-planet-overlay {
+  #edit-overlay, #edit-zone-overlay, #edit-planet-overlay, #add-planet-overlay, #add-moon-overlay, #edit-moon-overlay {
     display: none;
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
@@ -415,7 +415,7 @@
     justify-content: center;
     align-items: center;
   }
-  #edit-overlay.visible, #edit-zone-overlay.visible, #edit-planet-overlay.visible, #add-planet-overlay.visible { display: flex; }
+  #edit-overlay.visible, #edit-zone-overlay.visible, #edit-planet-overlay.visible, #add-planet-overlay.visible, #add-moon-overlay.visible, #edit-moon-overlay.visible { display: flex; }
   #edit-modal {
     background: rgba(10, 15, 30, 0.97);
     border: 1px solid rgba(100, 140, 255, 0.4);
@@ -479,7 +479,27 @@
     background: rgba(200, 50, 50, 0.15);
   }
   .zone-star-entry .remove-from-zone:hover { background: rgba(200, 50, 50, 0.35); }
-  .zone-star-empty, .planet-list-empty { color: #667799; font-size: 12px; font-style: italic; padding: 4px 6px; }
+  .zone-star-empty, .planet-list-empty, .moon-list-empty { color: #667799; font-size: 12px; font-style: italic; padding: 4px 6px; }
+  .moon-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #ddeeff;
+  }
+  .moon-entry:hover { background: rgba(60, 100, 220, 0.15); }
+  .moon-entry .remove-moon {
+    color: #ff6666;
+    cursor: pointer;
+    font-size: 11px;
+    padding: 2px 6px;
+    border: 1px solid rgba(255, 80, 80, 0.3);
+    border-radius: 3px;
+    background: rgba(200, 50, 50, 0.15);
+  }
+  .moon-entry .remove-moon:hover { background: rgba(200, 50, 50, 0.35); }
   .planet-entry {
     display: flex;
     justify-content: space-between;
@@ -527,6 +547,48 @@
     color: #667799;
     line-height: 1.6;
   }
+  /* Size slider groups */
+  .size-slider-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .size-slider-group input[type="range"] {
+    flex: 1;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    background: rgba(20, 30, 60, 0.8);
+    border: 1px solid rgba(100, 140, 255, 0.25);
+    border-radius: 3px;
+    outline: none;
+  }
+  .size-slider-group input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #7ab4ff;
+    cursor: pointer;
+    border: none;
+  }
+  .size-slider-group input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #7ab4ff;
+    cursor: pointer;
+    border: none;
+  }
+  .size-slider-group .size-value {
+    min-width: 80px;
+    text-align: right;
+    font-size: 11px;
+    color: #aaccff;
+    font-family: monospace;
+    white-space: nowrap;
+  }
+
   /* Selection box overlay */
   #select-box {
     position: fixed;
@@ -671,7 +733,10 @@
       </div>
     </div>
     <label for="edit-star-size">Size / Radius (AU)</label>
-    <input type="number" id="edit-star-size" min="0.00001" step="any">
+    <div class="size-slider-group">
+      <input type="range" id="edit-star-size" min="-3" max="0" step="0.01">
+      <span class="size-value" id="edit-star-size-value">0.00465 AU</span>
+    </div>
     <label>Zones</label>
     <div id="edit-star-zones" style="max-height:80px; overflow-y:auto; margin-top:4px;"></div>
     <label for="edit-star-folder">Folder</label>
@@ -710,7 +775,14 @@
       <option value="ice_giant">Ice Giant</option>
     </select>
     <label for="edit-planet-size">Size / Radius (AU)</label>
-    <input type="number" id="edit-planet-size" min="0.00001" step="any">
+    <div class="size-slider-group">
+      <input type="range" id="edit-planet-size" min="-5" max="-1" step="0.01">
+      <span class="size-value" id="edit-planet-size-value">0.0000426 AU</span>
+    </div>
+    <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
+    <label>Moons</label>
+    <div id="edit-planet-moon-list" style="max-height:120px; overflow-y:auto; margin-top:4px;"></div>
+    <button class="btn" id="btn-edit-planet-add-moon" style="width:100%; margin-top:6px; font-size:11px;">Add Moon</button>
     <div class="btn-row">
       <button class="btn" id="btn-edit-planet-save">Save</button>
       <button class="btn" id="btn-edit-planet-cancel">Cancel</button>
@@ -810,8 +882,68 @@
       <option value="ice_giant">Ice Giant</option>
     </select>
     <label for="add-planet-size">Size / Radius (AU)</label>
-    <input type="number" id="add-planet-size" placeholder="auto" min="0.00001" step="any">
+    <div class="size-slider-group">
+      <input type="range" id="add-planet-size" min="-5" max="-1" step="0.01">
+      <span class="size-value" id="add-planet-size-value">0.0000426 AU</span>
+    </div>
     <button class="btn" id="btn-add-planet" style="width:100%; margin-top:10px;">Add Planet</button>
+  </div>
+</div>
+
+<!-- Add Moon Modal -->
+<div id="add-moon-overlay">
+  <div id="edit-modal">
+    <span class="edit-close" id="add-moon-close" title="Close">&times;</span>
+    <h3>Add Moon</h3>
+    <input type="hidden" id="add-moon-planet-id">
+    <label for="add-moon-name">Name</label>
+    <input type="text" id="add-moon-name" placeholder="Moon name">
+    <div class="edit-coord-row" style="margin-top:6px;">
+      <div>
+        <label for="add-moon-radius">Orbital Radius (AU)</label>
+        <input type="number" id="add-moon-radius" placeholder="0.01" min="0.0001" step="any">
+      </div>
+      <div>
+        <label for="add-moon-angle">Angle (&deg;)</label>
+        <input type="number" id="add-moon-angle" placeholder="0" min="0" max="360" step="any">
+      </div>
+    </div>
+    <label for="add-moon-size">Size / Radius (AU)</label>
+    <div class="size-slider-group">
+      <input type="range" id="add-moon-size" min="-6" max="-2" step="0.01">
+      <span class="size-value" id="add-moon-size-value">0.00002 AU</span>
+    </div>
+    <button class="btn" id="btn-add-moon" style="width:100%; margin-top:10px;">Add Moon</button>
+  </div>
+</div>
+
+<!-- Edit Moon Modal -->
+<div id="edit-moon-overlay">
+  <div id="edit-modal">
+    <h3>Edit Moon</h3>
+    <input type="hidden" id="edit-moon-id">
+    <label for="edit-moon-name">Name</label>
+    <input type="text" id="edit-moon-name">
+    <div class="edit-coord-row">
+      <div>
+        <label for="edit-moon-radius">Orbital Radius (AU)</label>
+        <input type="number" id="edit-moon-radius" min="0.0001" step="any">
+      </div>
+      <div>
+        <label for="edit-moon-angle">Angle (&deg;)</label>
+        <input type="number" id="edit-moon-angle" min="0" max="360" step="any">
+      </div>
+    </div>
+    <label for="edit-moon-size">Size / Radius (AU)</label>
+    <div class="size-slider-group">
+      <input type="range" id="edit-moon-size" min="-6" max="-2" step="0.01">
+      <span class="size-value" id="edit-moon-size-value">0.00002 AU</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-edit-moon-save">Save</button>
+      <button class="btn" id="btn-edit-moon-cancel">Cancel</button>
+    </div>
+    <button class="btn" id="btn-edit-moon-delete" style="width:100%; margin-top:8px; background:rgba(255,60,60,0.15); border-color:rgba(255,80,80,0.4); color:#ff6666;">Delete Moon</button>
   </div>
 </div>
 
@@ -928,15 +1060,35 @@ const PLANET_CLASSIFICATIONS = {
 };
 const DEFAULT_STAR_SIZE = 0.00465; // Solar radius in AU
 
+// ── Log-scale size slider helpers ────────────────────
+function sizeToSlider(au) { return Math.log10(au); }
+function sliderToSize(val) { return Math.pow(10, parseFloat(val)); }
+function formatSize(au) {
+  if (au >= 0.01) return au.toFixed(4) + ' AU';
+  if (au >= 0.001) return au.toFixed(5) + ' AU';
+  if (au >= 0.0001) return au.toFixed(6) + ' AU';
+  return au.toExponential(2) + ' AU';
+}
+
+function initSizeSlider(sliderId, valueId) {
+  const slider = document.getElementById(sliderId);
+  const display = document.getElementById(valueId);
+  slider.addEventListener('input', () => {
+    display.textContent = formatSize(sliderToSize(slider.value));
+  });
+}
+
 // ── State ─────────────────────────────────────────────
 let stars = [];       // { id, name, x, y, z, zoneIds[], folderId } — coords in light years
 let zones = [];       // { id, name, color, starIds[] }
 let planets = [];     // { id, name, starId, orbitalRadius (AU), orbitalAngle (deg), classification }
+let moons = [];       // { id, name, planetId, orbitalRadius (AU), orbitalAngle (deg), size (AU) }
 let starFolders = []; // { id, name, collapsed }
 let nextFolderId = 1;
 let nextStarId = 1;
 let nextZoneId = 1;
 let nextPlanetId = 1;
+let nextMoonId = 1;
 let selectedStarIds = new Set();
 let lastClickedStarId = null;
 let measureMode = false;
@@ -1503,7 +1655,9 @@ function removeStar(id) {
     }
   }
   stars = stars.filter(s => s.id !== id);
+  const removedPlanetIds = planets.filter(p => p.starId === id).map(p => p.id);
   planets = planets.filter(p => p.starId !== id);
+  moons = moons.filter(m => !removedPlanetIds.includes(m.planetId));
   measureSelection = measureSelection.filter(s => !(s.type === 'star' && s.id === id));
   selectedStarIds.delete(id);
   clearMeasureLine();
@@ -1562,7 +1716,38 @@ function updatePlanet(id, name, orbitalRadius, orbitalAngle, classification, siz
 
 function removePlanet(id) {
   planets = planets.filter(p => p.id !== id);
+  moons = moons.filter(m => m.planetId !== id);
   measureSelection = measureSelection.filter(s => !(s.type === 'planet' && s.id === id));
+  clearMeasureLine();
+  rebuildPlanetMeshes();
+  saveToLocalStorage();
+}
+
+// ── Moon CRUD ────────────────────────────────────────
+const DEFAULT_MOON_SIZE = 0.00002; // ~Luna radius in AU
+
+function addMoon(name, planetId, orbitalRadius, orbitalAngle, size) {
+  const moon = { id: nextMoonId++, name, planetId, orbitalRadius: parseFloat(orbitalRadius), orbitalAngle: parseFloat(orbitalAngle), size: parseFloat(size) || DEFAULT_MOON_SIZE };
+  moons.push(moon);
+  rebuildPlanetMeshes();
+  saveToLocalStorage();
+  return moon;
+}
+
+function updateMoon(id, name, orbitalRadius, orbitalAngle, size) {
+  const moon = moons.find(m => m.id === id);
+  if (!moon) return;
+  moon.name = name;
+  moon.orbitalRadius = parseFloat(orbitalRadius);
+  moon.orbitalAngle = parseFloat(orbitalAngle);
+  moon.size = parseFloat(size) || DEFAULT_MOON_SIZE;
+  rebuildPlanetMeshes();
+  saveToLocalStorage();
+}
+
+function removeMoon(id) {
+  moons = moons.filter(m => m.id !== id);
+  measureSelection = measureSelection.filter(s => !(s.type === 'moon' && s.id === id));
   clearMeasureLine();
   rebuildPlanetMeshes();
   saveToLocalStorage();
@@ -1971,7 +2156,9 @@ function openEditModal(star) {
   document.getElementById('edit-star-x').value = star.x;
   document.getElementById('edit-star-y').value = star.y;
   document.getElementById('edit-star-z').value = star.z;
-  document.getElementById('edit-star-size').value = star.size || DEFAULT_STAR_SIZE;
+  const starSizeVal = star.size || DEFAULT_STAR_SIZE;
+  document.getElementById('edit-star-size').value = sizeToSlider(starSizeVal);
+  document.getElementById('edit-star-size-value').textContent = formatSize(starSizeVal);
 
   const zonesContainer = document.getElementById('edit-star-zones');
   zonesContainer.innerHTML = '';
@@ -2038,7 +2225,9 @@ function openAddPlanetModal(starId) {
   document.getElementById('add-planet-radius').value = '';
   document.getElementById('add-planet-angle').value = '';
   document.getElementById('add-planet-class').value = 'terrestrial';
-  document.getElementById('add-planet-size').value = '';
+  const addPlanetDefault = PLANET_CLASSIFICATIONS.terrestrial.defaultSize;
+  document.getElementById('add-planet-size').value = sizeToSlider(addPlanetDefault);
+  document.getElementById('add-planet-size-value').textContent = formatSize(addPlanetDefault);
   document.getElementById('add-planet-overlay').classList.add('visible');
   document.getElementById('add-planet-name').focus();
 }
@@ -2046,6 +2235,22 @@ function openAddPlanetModal(starId) {
 function closeAddPlanetModal() {
   document.getElementById('add-planet-overlay').classList.remove('visible');
 }
+
+// ── Size slider initialization ──────────────────────
+initSizeSlider('edit-star-size', 'edit-star-size-value');
+initSizeSlider('add-planet-size', 'add-planet-size-value');
+initSizeSlider('edit-planet-size', 'edit-planet-size-value');
+initSizeSlider('add-moon-size', 'add-moon-size-value');
+initSizeSlider('edit-moon-size', 'edit-moon-size-value');
+
+// Update add-planet slider when classification changes
+document.getElementById('add-planet-class').addEventListener('change', () => {
+  const cls = document.getElementById('add-planet-class').value;
+  const defaultSize = (PLANET_CLASSIFICATIONS[cls] || PLANET_CLASSIFICATIONS.terrestrial).defaultSize;
+  const slider = document.getElementById('add-planet-size');
+  slider.value = sizeToSlider(defaultSize);
+  document.getElementById('add-planet-size-value').textContent = formatSize(defaultSize);
+});
 
 document.getElementById('btn-solar-add-planet').addEventListener('click', () => {
   openAddPlanetModal(solarSystemStarId);
@@ -2069,7 +2274,7 @@ document.getElementById('btn-add-planet').addEventListener('click', () => {
   const rn = parseFloat(radius);
   if (isNaN(rn) || rn <= 0) { alert('Orbital radius must be greater than 0.'); return; }
 
-  const size = document.getElementById('add-planet-size').value;
+  const size = sliderToSize(document.getElementById('add-planet-size').value);
   addPlanet(name, starId, rn, parseFloat(angle) || 0, classification, size);
   closeAddPlanetModal();
   redrawSolarSystem();
@@ -2082,9 +2287,39 @@ function openEditPlanetModal(planet) {
   document.getElementById('edit-planet-radius').value = planet.orbitalRadius;
   document.getElementById('edit-planet-angle').value = planet.orbitalAngle;
   document.getElementById('edit-planet-class').value = planet.classification;
-  document.getElementById('edit-planet-size').value = planet.size || PLANET_CLASSIFICATIONS[planet.classification]?.defaultSize || 0.0000426;
+  const editPlanetSizeVal = planet.size || PLANET_CLASSIFICATIONS[planet.classification]?.defaultSize || 0.0000426;
+  document.getElementById('edit-planet-size').value = sizeToSlider(editPlanetSizeVal);
+  document.getElementById('edit-planet-size-value').textContent = formatSize(editPlanetSizeVal);
+  populatePlanetMoonList(planet);
   document.getElementById('edit-planet-overlay').classList.add('visible');
   document.getElementById('edit-planet-name').focus();
+}
+
+function populatePlanetMoonList(planet) {
+  const listEl = document.getElementById('edit-planet-moon-list');
+  listEl.innerHTML = '';
+  const planetMoons = moons.filter(m => m.planetId === planet.id);
+  if (planetMoons.length === 0) {
+    listEl.innerHTML = '<div class="moon-list-empty">No moons</div>';
+    return;
+  }
+  for (const moon of planetMoons) {
+    const entry = document.createElement('div');
+    entry.className = 'moon-entry';
+    entry.innerHTML = `
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#bbccdd;margin-right:5px;vertical-align:middle;"></span>${moon.name} <span style="color:#667799; font-size:11px;">${moon.orbitalRadius} AU</span></span>
+      <span class="remove-moon">Remove</span>
+    `;
+    entry.querySelector('.remove-moon').addEventListener('click', () => {
+      removeMoon(moon.id);
+      populatePlanetMoonList(planet);
+    });
+    entry.addEventListener('dblclick', () => {
+      closeEditPlanetModal();
+      openEditMoonModal(moon);
+    });
+    listEl.appendChild(entry);
+  }
 }
 
 function closeEditPlanetModal() {
@@ -2103,7 +2338,7 @@ document.getElementById('btn-edit-planet-save').addEventListener('click', () => 
   const rn = parseFloat(radius);
   if (isNaN(rn) || rn <= 0) { alert('Orbital radius must be greater than 0.'); return; }
 
-  const size = document.getElementById('edit-planet-size').value;
+  const size = sliderToSize(document.getElementById('edit-planet-size').value);
   updatePlanet(id, name, rn, parseFloat(angle) || 0, classification, size);
   closeEditPlanetModal();
 });
@@ -2121,6 +2356,100 @@ document.getElementById('btn-edit-planet-delete').addEventListener('click', () =
 
 document.getElementById('edit-planet-overlay').addEventListener('click', (e) => {
   if (e.target === document.getElementById('edit-planet-overlay')) closeEditPlanetModal();
+});
+
+document.getElementById('btn-edit-planet-add-moon').addEventListener('click', () => {
+  const planetId = parseInt(document.getElementById('edit-planet-id').value);
+  closeEditPlanetModal();
+  openAddMoonModal(planetId);
+});
+
+// ── Add Moon Modal ──────────────────────────────────
+function openAddMoonModal(planetId) {
+  document.getElementById('add-moon-planet-id').value = planetId;
+  document.getElementById('add-moon-name').value = '';
+  document.getElementById('add-moon-radius').value = '';
+  document.getElementById('add-moon-angle').value = '';
+  document.getElementById('add-moon-size').value = sizeToSlider(DEFAULT_MOON_SIZE);
+  document.getElementById('add-moon-size-value').textContent = formatSize(DEFAULT_MOON_SIZE);
+  document.getElementById('add-moon-overlay').classList.add('visible');
+  document.getElementById('add-moon-name').focus();
+}
+
+function closeAddMoonModal() {
+  document.getElementById('add-moon-overlay').classList.remove('visible');
+}
+
+document.getElementById('add-moon-close').addEventListener('click', closeAddMoonModal);
+
+document.getElementById('add-moon-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('add-moon-overlay')) closeAddMoonModal();
+});
+
+document.getElementById('btn-add-moon').addEventListener('click', () => {
+  const planetId = parseInt(document.getElementById('add-moon-planet-id').value);
+  const name = document.getElementById('add-moon-name').value.trim();
+  const radius = document.getElementById('add-moon-radius').value;
+  const angle = document.getElementById('add-moon-angle').value;
+  const size = sliderToSize(document.getElementById('add-moon-size').value);
+
+  if (!name) { alert('Please enter a moon name.'); return; }
+  if (radius === '') { alert('Please enter orbital radius.'); return; }
+  const rn = parseFloat(radius);
+  if (isNaN(rn) || rn <= 0) { alert('Orbital radius must be greater than 0.'); return; }
+
+  addMoon(name, planetId, rn, parseFloat(angle) || 0, size);
+  closeAddMoonModal();
+  redrawSolarSystem();
+});
+
+// ── Edit Moon Modal ─────────────────────────────────
+function openEditMoonModal(moon) {
+  document.getElementById('edit-moon-id').value = moon.id;
+  document.getElementById('edit-moon-name').value = moon.name;
+  document.getElementById('edit-moon-radius').value = moon.orbitalRadius;
+  document.getElementById('edit-moon-angle').value = moon.orbitalAngle;
+  const editMoonSizeVal = moon.size || DEFAULT_MOON_SIZE;
+  document.getElementById('edit-moon-size').value = sizeToSlider(editMoonSizeVal);
+  document.getElementById('edit-moon-size-value').textContent = formatSize(editMoonSizeVal);
+  document.getElementById('edit-moon-overlay').classList.add('visible');
+  document.getElementById('edit-moon-name').focus();
+}
+
+function closeEditMoonModal() {
+  document.getElementById('edit-moon-overlay').classList.remove('visible');
+}
+
+document.getElementById('btn-edit-moon-save').addEventListener('click', () => {
+  const id = parseInt(document.getElementById('edit-moon-id').value);
+  const name = document.getElementById('edit-moon-name').value.trim();
+  const radius = document.getElementById('edit-moon-radius').value;
+  const angle = document.getElementById('edit-moon-angle').value;
+  const size = sliderToSize(document.getElementById('edit-moon-size').value);
+
+  if (!name) { alert('Please enter a moon name.'); return; }
+  if (radius === '') { alert('Please enter orbital radius.'); return; }
+  const rn = parseFloat(radius);
+  if (isNaN(rn) || rn <= 0) { alert('Orbital radius must be greater than 0.'); return; }
+
+  updateMoon(id, name, rn, parseFloat(angle) || 0, size);
+  closeEditMoonModal();
+  redrawSolarSystem();
+});
+
+document.getElementById('btn-edit-moon-cancel').addEventListener('click', closeEditMoonModal);
+
+document.getElementById('btn-edit-moon-delete').addEventListener('click', () => {
+  const id = parseInt(document.getElementById('edit-moon-id').value);
+  const moon = moons.find(m => m.id === id);
+  if (!moon || !confirm(`Delete moon "${moon.name}"?`)) return;
+  removeMoon(id);
+  closeEditMoonModal();
+  redrawSolarSystem();
+});
+
+document.getElementById('edit-moon-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('edit-moon-overlay')) closeEditMoonModal();
 });
 
 function closeEditModal() {
@@ -2146,7 +2475,7 @@ document.getElementById('btn-edit-save').addEventListener('click', () => {
     return;
   }
 
-  const size = parseFloat(document.getElementById('edit-star-size').value) || DEFAULT_STAR_SIZE;
+  const size = sliderToSize(document.getElementById('edit-star-size').value) || DEFAULT_STAR_SIZE;
   updateStar(id, name, xn, yn, zn, newZoneIds, size, folderId);
   closeEditModal();
 });
@@ -2164,7 +2493,13 @@ document.addEventListener('keydown', (e) => {
     const zoneEditOpen = document.getElementById('edit-zone-overlay').classList.contains('visible');
     const bulkOpen = document.getElementById('bulk-add-overlay').classList.contains('visible');
     const addPlanetOpen = document.getElementById('add-planet-overlay').classList.contains('visible');
-    if (addPlanetOpen) {
+    const addMoonOpen = document.getElementById('add-moon-overlay').classList.contains('visible');
+    const editMoonOpen = document.getElementById('edit-moon-overlay').classList.contains('visible');
+    if (addMoonOpen) {
+      closeAddMoonModal();
+    } else if (editMoonOpen) {
+      closeEditMoonModal();
+    } else if (addPlanetOpen) {
       closeAddPlanetModal();
     } else if (editOpen || planetEditOpen || zoneEditOpen || bulkOpen) {
       closeEditModal(); closeEditZoneModal(); closeEditPlanetModal(); closeBulkAddModal();
@@ -2245,6 +2580,7 @@ document.getElementById('edit-zone-overlay').addEventListener('click', (e) => {
 // ── Solar System Popup ───────────────────────────────
 let solarSystemStarId = null;
 let solarSystemPlanetPositions = []; // [{planet, cx, cy, radius}] for hit detection
+let solarSystemMoonPositions = [];   // [{moon, cx, cy, radius}] for hit detection
 let ssZoom = 1;
 let ssPanX = 0, ssPanY = 0;
 let ssIsDragging = false, ssDragStartX = 0, ssDragStartY = 0, ssPanStartX = 0, ssPanStartY = 0;
@@ -2263,6 +2599,7 @@ function closeSolarSystemPopup() {
   document.getElementById('solar-system-overlay').classList.remove('visible');
   solarSystemStarId = null;
   solarSystemPlanetPositions = [];
+  solarSystemMoonPositions = [];
 }
 
 function redrawSolarSystem() {
@@ -2280,6 +2617,7 @@ function drawSolarSystem(star) {
   const centerX = baseCX + ssPanX, centerY = baseCY + ssPanY;
   const starPlanets = planets.filter(p => p.starId === star.id);
   solarSystemPlanetPositions = [];
+  solarSystemMoonPositions = [];
 
   // Find max orbital radius for scaling
   const maxRadius = starPlanets.length > 0
@@ -2368,6 +2706,41 @@ function drawSolarSystem(star) {
 
     // Store position for hit detection
     solarSystemPlanetPositions.push({ planet, cx: px, cy: py, radius: Math.max(glowR, 8) });
+
+    // Draw moons orbiting this planet
+    const planetMoons = moons.filter(m => m.planetId === planet.id);
+    for (const moon of planetMoons) {
+      const moonOrbitR = moon.orbitalRadius * scale;
+      // Dashed orbit circle around planet
+      ctx.beginPath();
+      ctx.arc(px, py, moonOrbitR, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(180, 200, 220, 0.3)';
+      ctx.setLineDash([3, 3]);
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      const moonAngleRad = (moon.orbitalAngle * Math.PI) / 180;
+      const mx = px + Math.cos(moonAngleRad) * moonOrbitR;
+      const my = py - Math.sin(moonAngleRad) * moonOrbitR;
+      const moonSize = moon.size || DEFAULT_MOON_SIZE;
+      const moonR = Math.max(2, moonSize * bodyScale * Math.min(ssZoom, 4));
+
+      // Moon circle
+      ctx.beginPath();
+      ctx.arc(mx, my, moonR, 0, Math.PI * 2);
+      ctx.fillStyle = '#bbccdd';
+      ctx.fill();
+
+      // Moon name
+      ctx.font = '9px Arial';
+      ctx.fillStyle = '#99aabb';
+      ctx.textAlign = 'center';
+      ctx.fillText(moon.name, mx, my - moonR - 3);
+
+      // Store for hit detection
+      solarSystemMoonPositions.push({ moon, cx: mx, cy: my, radius: Math.max(moonR, 6) });
+    }
   }
 
   // "No planets" message
@@ -2440,9 +2813,18 @@ document.addEventListener('mouseup', () => {
   ssIsDragging = false;
 });
 
-// Double-click on planet in solar system canvas
+// Double-click on moon or planet in solar system canvas
 document.getElementById('solar-system-canvas').addEventListener('dblclick', (e) => {
   const { x: mx, y: my } = ssCanvasCoords(e);
+
+  // Check moons first (smaller targets, need priority)
+  for (const mp of solarSystemMoonPositions) {
+    const dx = mx - mp.cx, dy = my - mp.cy;
+    if (dx * dx + dy * dy <= mp.radius * mp.radius) {
+      openEditMoonModal(mp.moon);
+      return;
+    }
+  }
 
   for (const pp of solarSystemPlanetPositions) {
     const dx = mx - pp.cx, dy = my - pp.cy;
@@ -2972,7 +3354,7 @@ function updateZoneDropdowns() {
 
 // ── Export / Import ──────────────────────────────────
 document.getElementById('btn-export').addEventListener('click', () => {
-  const data = JSON.stringify({ stars, zones, planets, starFolders }, null, 2);
+  const data = JSON.stringify({ stars, zones, planets, moons, starFolders }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -3055,6 +3437,7 @@ document.getElementById('file-input').addEventListener('change', (e) => {
           }
         }
         // Import planets
+        const planetIdMap = {};
         if (imported.planets && Array.isArray(imported.planets)) {
           for (const p of imported.planets) {
             if (p.name && p.starId !== undefined && p.orbitalRadius !== undefined) {
@@ -3062,7 +3445,20 @@ document.getElementById('file-input').addEventListener('change', (e) => {
               if (newStarId) {
                 const defaultSize = (PLANET_CLASSIFICATIONS[p.classification] || PLANET_CLASSIFICATIONS.terrestrial).defaultSize;
                 const planet = { id: nextPlanetId++, name: p.name, starId: newStarId, orbitalRadius: parseFloat(p.orbitalRadius), orbitalAngle: parseFloat(p.orbitalAngle || 0), classification: p.classification || 'terrestrial', size: parseFloat(p.size) || defaultSize };
+                planetIdMap[p.id] = planet.id;
                 planets.push(planet);
+              }
+            }
+          }
+        }
+        // Import moons
+        if (imported.moons && Array.isArray(imported.moons)) {
+          for (const m of imported.moons) {
+            if (m.name && m.planetId !== undefined && m.orbitalRadius !== undefined) {
+              const newPlanetId = planetIdMap[m.planetId];
+              if (newPlanetId) {
+                const moon = { id: nextMoonId++, name: m.name, planetId: newPlanetId, orbitalRadius: parseFloat(m.orbitalRadius), orbitalAngle: parseFloat(m.orbitalAngle || 0), size: parseFloat(m.size) || DEFAULT_MOON_SIZE };
+                moons.push(moon);
               }
             }
           }
@@ -3087,19 +3483,21 @@ document.getElementById('file-input').addEventListener('change', (e) => {
 });
 
 document.getElementById('btn-clear-all').addEventListener('click', () => {
-  if (stars.length || zones.length || planets.length) {
+  if (stars.length || zones.length || planets.length || moons.length) {
     if (confirm('Export a save before clearing?')) {
       document.getElementById('btn-export').click();
     }
   }
-  if (!confirm('Delete all stars, planets, and zones?')) return;
+  if (!confirm('Delete all stars, planets, moons, and zones?')) return;
   stars = [];
   zones = [];
   planets = [];
+  moons = [];
   starFolders = [];
   nextStarId = 1;
   nextZoneId = 1;
   nextPlanetId = 1;
+  nextMoonId = 1;
   nextFolderId = 1;
   measureSelection = [];
   clearMeasureLine();
@@ -3117,10 +3515,12 @@ function saveToLocalStorage() {
   localStorage.setItem('universe-map-stars', JSON.stringify(stars));
   localStorage.setItem('universe-map-zones', JSON.stringify(zones));
   localStorage.setItem('universe-map-planets', JSON.stringify(planets));
+  localStorage.setItem('universe-map-moons', JSON.stringify(moons));
   localStorage.setItem('universe-map-starFolders', JSON.stringify(starFolders));
   localStorage.setItem('universe-map-nextStarId', nextStarId);
   localStorage.setItem('universe-map-nextZoneId', nextZoneId);
   localStorage.setItem('universe-map-nextPlanetId', nextPlanetId);
+  localStorage.setItem('universe-map-nextMoonId', nextMoonId);
   localStorage.setItem('universe-map-nextFolderId', nextFolderId);
 }
 
@@ -3129,10 +3529,12 @@ function loadFromLocalStorage() {
     const starData = localStorage.getItem('universe-map-stars');
     const zoneData = localStorage.getItem('universe-map-zones');
     const planetData = localStorage.getItem('universe-map-planets');
+    const moonData = localStorage.getItem('universe-map-moons');
     const folderData = localStorage.getItem('universe-map-starFolders');
     const nsid = localStorage.getItem('universe-map-nextStarId');
     const nzid = localStorage.getItem('universe-map-nextZoneId');
     const npid = localStorage.getItem('universe-map-nextPlanetId');
+    const nmid = localStorage.getItem('universe-map-nextMoonId');
     const nfid = localStorage.getItem('universe-map-nextFolderId');
 
     if (zoneData) {
@@ -3153,6 +3555,10 @@ function loadFromLocalStorage() {
     if (planetData) {
       planets = JSON.parse(planetData);
       nextPlanetId = npid ? parseInt(npid) : (planets.length ? Math.max(...planets.map(p => p.id)) + 1 : 1);
+    }
+    if (moonData) {
+      moons = JSON.parse(moonData);
+      nextMoonId = nmid ? parseInt(nmid) : (moons.length ? Math.max(...moons.map(m => m.id)) + 1 : 1);
     }
     if (folderData) {
       starFolders = JSON.parse(folderData);
