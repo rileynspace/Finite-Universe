@@ -281,6 +281,21 @@
     padding-left: 12px;
   }
   .star-folder-contents.collapsed { display: none; }
+  #star-search {
+    flex-shrink: 0;
+    width: 100%;
+    padding: 5px 8px;
+    margin-top: 6px;
+    background: rgba(20, 30, 60, 0.8);
+    border: 1px solid rgba(100, 140, 255, 0.25);
+    border-radius: 4px;
+    color: #ddeeff;
+    font-size: 12px;
+    outline: none;
+    box-sizing: border-box;
+  }
+  #star-search:focus { border-color: rgba(100, 140, 255, 0.6); }
+  #star-search::placeholder { color: #556688; }
   #star-list-toolbar {
     display: flex;
     gap: 4px;
@@ -586,6 +601,7 @@
     </select>
   </div>
   <div id="star-list"></div>
+  <input type="text" id="star-search" placeholder="Search stars..." autocomplete="off">
   </div>
 </div>
 
@@ -2833,6 +2849,29 @@ function updateStarList() {
     listEl.appendChild(createStarEntry(star));
   }
 }
+
+document.getElementById('star-search').addEventListener('input', (e) => {
+  const query = e.target.value.toLowerCase();
+  const entries = document.querySelectorAll('#star-list .star-entry');
+  const folders = document.querySelectorAll('#star-list .star-folder');
+
+  if (!query) {
+    entries.forEach(el => el.style.display = '');
+    folders.forEach(el => el.style.display = '');
+    return;
+  }
+
+  entries.forEach(el => {
+    const name = el.querySelector('.name')?.textContent.toLowerCase() || '';
+    el.style.display = name.includes(query) ? '' : 'none';
+  });
+
+  // Hide folders where no stars match
+  folders.forEach(folder => {
+    const visible = folder.querySelectorAll('.star-entry:not([style*="display: none"])');
+    folder.style.display = visible.length ? '' : 'none';
+  });
+});
 
 function highlightStarInList() {
   document.querySelectorAll('.star-entry').forEach(el => {
