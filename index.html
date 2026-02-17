@@ -387,12 +387,23 @@
     line-height: 1;
   }
   #solar-system-close:hover { color: #ff9999; }
-  #solar-system-popup .btn-row-bottom {
+  .ss-btn-top-right {
+    position: absolute;
+    top: 50px;
+    right: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .ss-btn-bottom-left {
+    position: absolute;
+    bottom: 28px;
+    left: 28px;
+  }
+  .ss-btn-bottom-right {
     position: absolute;
     bottom: 28px;
     right: 28px;
-    display: flex;
-    gap: 8px;
   }
 
   #bulk-add-overlay {
@@ -849,11 +860,12 @@
     <span id="solar-system-close" title="Close">&times;</span>
     <h3 id="solar-system-title">Solar System</h3>
     <canvas id="solar-system-canvas" width="560" height="480"></canvas>
-    <div class="btn-row-bottom">
-      <button class="btn" id="btn-solar-recenter">Recenter</button>
-      <button class="btn" id="btn-solar-add-planet">Add Planet</button>
+    <div class="ss-btn-top-right">
       <button class="btn" id="btn-solar-edit-star">Edit Solar System</button>
+      <button class="btn" id="btn-solar-add-planet">Add Planet</button>
     </div>
+    <button class="btn ss-btn-bottom-left" id="btn-solar-animate">&#9654; Animate</button>
+    <button class="btn ss-btn-bottom-right" id="btn-solar-recenter">Recenter</button>
   </div>
 </div>
 
@@ -2584,6 +2596,9 @@ let solarSystemMoonPositions = [];   // [{moon, cx, cy, radius}] for hit detecti
 let ssZoom = 1;
 let ssPanX = 0, ssPanY = 0;
 let ssIsDragging = false, ssDragStartX = 0, ssDragStartY = 0, ssPanStartX = 0, ssPanStartY = 0;
+let orbitAnimating = false;
+let orbitTime = 0;        // accumulated animation time in seconds
+let orbitLastFrame = 0;   // timestamp of last frame
 
 function openSolarSystemPopup(star) {
   solarSystemStarId = star.id;
@@ -2600,6 +2615,12 @@ function closeSolarSystemPopup() {
   solarSystemStarId = null;
   solarSystemPlanetPositions = [];
   solarSystemMoonPositions = [];
+  orbitAnimating = false;
+  orbitTime = 0;
+  orbitLastFrame = 0;
+  const btn = document.getElementById('btn-solar-animate');
+  btn.textContent = '\u25B6 Animate';
+  btn.classList.remove('active');
 }
 
 function redrawSolarSystem() {
@@ -2675,7 +2696,8 @@ function drawSolarSystem(star) {
     const pSize = planet.size || classInfo.defaultSize;
     const planetR = Math.max(3, pSize * bodyScale * Math.min(ssZoom, 4));
     const orbitR = planet.orbitalRadius * scale;
-    const angleRad = (planet.orbitalAngle * Math.PI) / 180;
+    const orbitSpeed = orbitAnimating ? (1 / Math.sqrt(planet.orbitalRadius)) * 0.5 : 0;
+    const angleRad = (planet.orbitalAngle * Math.PI) / 180 + orbitTime * orbitSpeed;
     const px = centerX + Math.cos(angleRad) * orbitR;
     const py = centerY - Math.sin(angleRad) * orbitR; // canvas Y is inverted
 
@@ -2720,7 +2742,8 @@ function drawSolarSystem(star) {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      const moonAngleRad = (moon.orbitalAngle * Math.PI) / 180;
+      const moonOrbitSpeed = orbitAnimating ? (1 / Math.sqrt(moon.orbitalRadius * 0.1)) * 0.5 : 0;
+      const moonAngleRad = (moon.orbitalAngle * Math.PI) / 180 + orbitTime * moonOrbitSpeed;
       const mx = px + Math.cos(moonAngleRad) * moonOrbitR;
       const my = py - Math.sin(moonAngleRad) * moonOrbitR;
       const moonSize = moon.size || DEFAULT_MOON_SIZE;
@@ -2755,7 +2778,7 @@ function drawSolarSystem(star) {
   ctx.font = '10px Arial';
   ctx.fillStyle = 'rgba(100, 140, 255, 0.4)';
   ctx.textAlign = 'left';
-  ctx.fillText(`${ssZoom.toFixed(1)}x`, 8, h - 8);
+  ctx.fillText(`${ssZoom.toFixed(1)}x`, 8, 16);
 }
 
 // Canvas mouse coordinates helper
@@ -2841,6 +2864,19 @@ document.getElementById('btn-solar-recenter').addEventListener('click', () => {
   ssPanX = 0;
   ssPanY = 0;
   redrawSolarSystem();
+});
+
+document.getElementById('btn-solar-animate').addEventListener('click', () => {
+  orbitAnimating = !orbitAnimating;
+  const btn = document.getElementById('btn-solar-animate');
+  if (orbitAnimating) {
+    orbitLastFrame = 0;
+    btn.textContent = '\u23F8 Pause';
+    btn.classList.add('active');
+  } else {
+    btn.textContent = '\u25B6 Animate';
+    btn.classList.remove('active');
+  }
 });
 
 document.getElementById('btn-solar-edit-star').addEventListener('click', () => {
@@ -3600,9 +3636,17 @@ function screenToWorld(screenPx, distance) {
   return screenPx * worldPerPx;
 }
 
-function animate() {
+function animate(timestamp) {
   requestAnimationFrame(animate);
   controls.update();
+
+  // Orbit animation tick
+  if (orbitAnimating && solarSystemStarId !== null) {
+    const dt = orbitLastFrame ? (timestamp - orbitLastFrame) / 1000 : 0;
+    orbitTime += dt;
+    redrawSolarSystem();
+  }
+  orbitLastFrame = timestamp;
 
   // Adaptive camera: adjust near clipping plane based on zoom level
   const camDist = camera.position.distanceTo(controls.target);
