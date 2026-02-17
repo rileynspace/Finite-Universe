@@ -131,15 +131,19 @@
 
   /* Zones Panel */
   #zones-panel {
-    max-height: 350px;
+    max-height: 300px;
     overflow: hidden;
     display: flex;
     flex-direction: column;
   }
-  #zone-list {
+  #zones-panel-body {
     overflow-y: auto;
     flex: 1;
-    max-height: 180px;
+    min-height: 0;
+  }
+  #zone-list {
+    max-height: 150px;
+    overflow-y: auto;
   }
   .zone-entry {
     display: flex;
@@ -399,6 +403,40 @@
     position: absolute;
     bottom: 28px;
     left: 28px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #orbit-speed-slider {
+    width: 80px;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    background: rgba(100, 140, 255, 0.25);
+    border-radius: 2px;
+    outline: none;
+  }
+  #orbit-speed-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #7ab4ff;
+    cursor: pointer;
+  }
+  #orbit-speed-slider::-moz-range-thumb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #7ab4ff;
+    cursor: pointer;
+    border: none;
+  }
+  #orbit-speed-label {
+    font-size: 11px;
+    color: #7ab4ff;
+    min-width: 30px;
+    font-family: monospace;
   }
   .ss-btn-bottom-right {
     position: absolute;
@@ -609,10 +647,114 @@
     display: none;
     z-index: 9999;
   }
+
+  /* Timeline bar */
+  #timeline-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 44px;
+    background: rgba(10, 15, 30, 0.92);
+    border-top: 1px solid rgba(100, 140, 255, 0.3);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center;
+    padding: 0 16px;
+    gap: 8px;
+    z-index: 100;
+  }
+  #timeline-bar.visible { display: flex; }
+  #timeline-bar .btn {
+    margin-top: 0;
+    padding: 5px 10px;
+    font-size: 13px;
+    flex-shrink: 0;
+  }
+  #era-markers {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    overflow-x: auto;
+    padding: 4px 0;
+  }
+  .era-marker {
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #8899bb;
+    background: rgba(20, 30, 60, 0.6);
+    border: 1px solid rgba(100, 140, 255, 0.2);
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .era-marker:hover { background: rgba(60, 100, 220, 0.3); }
+  .era-marker.active {
+    background: rgba(60, 100, 220, 0.5);
+    border-color: #7ab4ff;
+    color: #fff;
+  }
+
+  /* Era badges in zone list */
+  .zone-era-badges {
+    display: inline;
+    margin-left: 4px;
+  }
+  .zone-era-badge {
+    font-size: 9px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    background: rgba(60, 100, 220, 0.25);
+    color: #88aacc;
+    margin-left: 2px;
+  }
+  .zone-era-badge.all { background: rgba(100, 100, 100, 0.2); color: #667799; }
+
+  /* Era list in zones panel */
+  .era-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+    color: #ddeeff;
+  }
+  .era-entry:hover { background: rgba(60, 100, 220, 0.15); }
+  .era-entry .delete-era {
+    color: #ff6666;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 0 4px;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .era-entry:hover .delete-era { opacity: 1; }
+
+  /* Era checkboxes in edit zone modal */
+  .era-checkbox-entry {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 6px;
+    font-size: 12px;
+    color: #ddeeff;
+    cursor: pointer;
+  }
+  .era-checkbox-entry:hover { background: rgba(60, 100, 220, 0.15); border-radius: 3px; }
 </style>
 </head>
 <body>
 <div id="select-box"></div>
+
+<!-- Timeline Bar -->
+<div id="timeline-bar">
+  <button class="btn" id="btn-era-prev" title="Previous era">&#9664;</button>
+  <div id="era-markers"></div>
+  <button class="btn" id="btn-era-next" title="Next era">&#9654;</button>
+</div>
 
 <!-- Add Star Panel -->
 <div id="left-panel-stack">
@@ -660,6 +802,13 @@
   <button class="btn" id="btn-add-zone">Add Zone</button>
   <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
   <div id="zone-list"></div>
+  <hr style="border:none; border-top:1px solid rgba(100,140,255,0.15); margin:12px 0 8px;">
+  <label for="era-name">Era Name</label>
+  <div style="display:flex; gap:4px;">
+    <input type="text" id="era-name" placeholder="e.g. Ancient" style="flex:1;">
+    <button class="btn" id="btn-add-era" style="margin-top:0;">Add Era</button>
+  </div>
+  <div id="era-list" style="margin-top:6px;"></div>
   </div>
 </div>
 
@@ -864,7 +1013,11 @@
       <button class="btn" id="btn-solar-edit-star">Edit Solar System</button>
       <button class="btn" id="btn-solar-add-planet">Add Planet</button>
     </div>
-    <button class="btn ss-btn-bottom-left" id="btn-solar-animate">&#9654; Animate</button>
+    <div class="ss-btn-bottom-left">
+      <button class="btn" id="btn-solar-animate">&#9654; Animate</button>
+      <input type="range" id="orbit-speed-slider" min="-1" max="2" step="0.01" value="0" title="Orbit speed">
+      <span id="orbit-speed-label">1x</span>
+    </div>
     <button class="btn ss-btn-bottom-right" id="btn-solar-recenter">Recenter</button>
   </div>
 </div>
@@ -976,6 +1129,8 @@
     </select>
     <label>Stars in zone</label>
     <div id="edit-zone-star-list" style="max-height:120px; overflow-y:auto; margin-top:4px;"></div>
+    <label>Eras <span style="font-size:10px; color:#667799;">(empty = visible in all)</span></label>
+    <div id="edit-zone-eras" style="max-height:80px; overflow-y:auto; margin-top:4px;"></div>
     <div class="btn-row">
       <button class="btn" id="btn-edit-zone-save">Save</button>
       <button class="btn" id="btn-edit-zone-cancel">Cancel</button>
@@ -1092,10 +1247,13 @@ function initSizeSlider(sliderId, valueId) {
 
 // ── State ─────────────────────────────────────────────
 let stars = [];       // { id, name, x, y, z, zoneIds[], folderId } — coords in light years
-let zones = [];       // { id, name, color, starIds[] }
+let zones = [];       // { id, name, color, starIds[], hidden, eraIds[] }
 let planets = [];     // { id, name, starId, orbitalRadius (AU), orbitalAngle (deg), classification }
 let moons = [];       // { id, name, planetId, orbitalRadius (AU), orbitalAngle (deg), size (AU) }
 let starFolders = []; // { id, name, collapsed }
+let eras = [];          // { id, name }
+let currentEraId = null; // null = "all eras" (no filtering)
+let nextEraId = 1;
 let nextFolderId = 1;
 let nextStarId = 1;
 let nextZoneId = 1;
@@ -1362,7 +1520,14 @@ function rebuildZoneMeshes() {
 
   for (const zone of zones) {
     if (zone.hidden) continue;
-    const zoneStars = stars.filter(st => zone.starIds.includes(st.id));
+    // Era filtering: if an era is selected, skip zones that have era assignments but don't include the current era
+    if (currentEraId !== null && zone.eraIds && zone.eraIds.length > 0 && !zone.eraIds.includes(currentEraId)) continue;
+    const zoneStars = stars.filter(st => {
+      if (!zone.starIds.includes(st.id)) return false;
+      if (currentEraId === null) return true;
+      if (!zone.starEraMap || !zone.starEraMap[st.id] || zone.starEraMap[st.id].length === 0) return true;
+      return zone.starEraMap[st.id].includes(currentEraId);
+    });
     if (zoneStars.length === 0) continue;
 
     const colorInfo = ZONE_COLORS[zone.color] || ZONE_COLORS.gray;
@@ -1506,9 +1671,7 @@ function autoAssignStarsToZones() {
         if (zone.starIds.includes(star.id)) continue;
         const dx = lyToWorld(star.x) - sx, dy = lyToWorld(star.y) - sy, dz = lyToWorld(star.z) - sz;
         if (Math.sqrt(dx * dx + dy * dy + dz * dz) <= padWorld) {
-          if (!star.zoneIds) star.zoneIds = [];
-          if (!star.zoneIds.includes(zone.id)) star.zoneIds.push(zone.id);
-          if (!zone.starIds.includes(star.id)) zone.starIds.push(star.id);
+          addStarToZone(zone, star.id);
           changed = true;
         }
       }
@@ -1529,9 +1692,7 @@ function autoAssignStarsToZones() {
           if (zone.starIds.includes(star.id)) continue;
           const wp = new THREE.Vector3(lyToWorld(star.x), lyToWorld(star.y), lyToWorld(star.z));
           if (isPointInConvexHull(wp, hullGeo)) {
-            if (!star.zoneIds) star.zoneIds = [];
-            if (!star.zoneIds.includes(zone.id)) star.zoneIds.push(zone.id);
-            if (!zone.starIds.includes(star.id)) zone.starIds.push(star.id);
+            addStarToZone(zone, star.id);
             changed = true;
           }
         }
@@ -1605,13 +1766,72 @@ function rebuildPlanetMeshes() {
 }
 
 // ── Star CRUD ────────────────────────────────────────
+function addStarToZone(zone, starId) {
+  if (!zone.starIds.includes(starId)) zone.starIds.push(starId);
+  if (!zone.starEraMap) zone.starEraMap = {};
+  if (currentEraId !== null) {
+    if (!zone.starEraMap[starId] || zone.starEraMap[starId].length === 0) {
+      zone.starEraMap[starId] = [currentEraId];
+    } else if (!zone.starEraMap[starId].includes(currentEraId)) {
+      zone.starEraMap[starId].push(currentEraId);
+    }
+  }
+  const star = stars.find(s => s.id === starId);
+  if (star) {
+    if (!star.zoneIds) star.zoneIds = [];
+    if (!star.zoneIds.includes(zone.id)) star.zoneIds.push(zone.id);
+  }
+}
+
+function removeStarFromZone(zone, starId) {
+  if (currentEraId !== null) {
+    if (!zone.starEraMap) zone.starEraMap = {};
+    if (zone.starEraMap[starId] && zone.starEraMap[starId].length > 0) {
+      // Star has specific era entries — remove the current era
+      zone.starEraMap[starId] = zone.starEraMap[starId].filter(eid => eid !== currentEraId);
+      if (zone.starEraMap[starId].length === 0) {
+        // No eras left — remove star from zone entirely
+        delete zone.starEraMap[starId];
+        zone.starIds = zone.starIds.filter(sid => sid !== starId);
+        const star = stars.find(s => s.id === starId);
+        if (star && star.zoneIds) star.zoneIds = star.zoneIds.filter(zid => zid !== zone.id);
+      }
+    } else {
+      // Star is in "all eras" (no map entry) — restrict to all eras except current
+      const remainingEras = eras.map(e => e.id).filter(eid => eid !== currentEraId);
+      if (remainingEras.length === 0) {
+        // Only one era exists and we're removing it — remove star entirely
+        delete zone.starEraMap[starId];
+        zone.starIds = zone.starIds.filter(sid => sid !== starId);
+        const star = stars.find(s => s.id === starId);
+        if (star && star.zoneIds) star.zoneIds = star.zoneIds.filter(zid => zid !== zone.id);
+      } else {
+        zone.starEraMap[starId] = remainingEras;
+      }
+    }
+  } else {
+    // Viewing "All" — remove completely
+    if (zone.starEraMap) delete zone.starEraMap[starId];
+    zone.starIds = zone.starIds.filter(sid => sid !== starId);
+    const star = stars.find(s => s.id === starId);
+    if (star && star.zoneIds) star.zoneIds = star.zoneIds.filter(zid => zid !== zone.id);
+  }
+}
+
+function removeStarFromZoneFully(zone, starId) {
+  if (zone.starEraMap) delete zone.starEraMap[starId];
+  zone.starIds = zone.starIds.filter(sid => sid !== starId);
+  const star = stars.find(s => s.id === starId);
+  if (star && star.zoneIds) star.zoneIds = star.zoneIds.filter(zid => zid !== zone.id);
+}
+
 function addStar(name, x, y, z, zoneId = null, size = DEFAULT_STAR_SIZE) {
   const zoneIds = zoneId ? [zoneId] : [];
-  const star = { id: nextStarId++, name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z), zoneIds, size: parseFloat(size), folderId: null };
+  const star = { id: nextStarId++, name, x: parseFloat(x), y: parseFloat(y), z: parseFloat(z), zoneIds: [], size: parseFloat(size), folderId: null };
   stars.push(star);
-  for (const zid of star.zoneIds) {
+  for (const zid of zoneIds) {
     const zone = zones.find(z => z.id === zid);
-    if (zone && !zone.starIds.includes(star.id)) zone.starIds.push(star.id);
+    if (zone) addStarToZone(zone, star.id);
   }
   rebuildStarMeshes();
   rebuildZoneMeshes();
@@ -1635,18 +1855,19 @@ function updateStar(id, name, x, y, z, newZoneIds, size, folderId) {
 
   // Sync zone memberships
   if (newZoneIds !== undefined) {
-    star.zoneIds = newZoneIds;
     // Remove star from zones it's no longer in
     for (const oldZid of oldZoneIds) {
       if (!newZoneIds.includes(oldZid)) {
         const zone = zones.find(z => z.id === oldZid);
-        if (zone) zone.starIds = zone.starIds.filter(sid => sid !== id);
+        if (zone) removeStarFromZone(zone, id);
       }
     }
     // Add star to zones it's newly in
     for (const newZid of newZoneIds) {
-      const zone = zones.find(z => z.id === newZid);
-      if (zone && !zone.starIds.includes(id)) zone.starIds.push(id);
+      if (!oldZoneIds.includes(newZid)) {
+        const zone = zones.find(z => z.id === newZid);
+        if (zone) addStarToZone(zone, id);
+      }
     }
   }
 
@@ -1661,9 +1882,9 @@ function updateStar(id, name, x, y, z, newZoneIds, size, folderId) {
 function removeStar(id) {
   const star = stars.find(s => s.id === id);
   if (star && star.zoneIds) {
-    for (const zid of star.zoneIds) {
+    for (const zid of [...star.zoneIds]) {
       const zone = zones.find(z => z.id === zid);
-      if (zone) zone.starIds = zone.starIds.filter(sid => sid !== id);
+      if (zone) removeStarFromZoneFully(zone, id);
     }
   }
   stars = stars.filter(s => s.id !== id);
@@ -1683,7 +1904,7 @@ function removeStar(id) {
 
 // ── Zone CRUD ────────────────────────────────────────
 function addZone(name, color) {
-  const zone = { id: nextZoneId++, name, color, starIds: [], hidden: false };
+  const zone = { id: nextZoneId++, name, color, starIds: [], hidden: false, eraIds: [], starEraMap: {} };
   zones.push(zone);
   updateZoneList();
   updateZoneDropdowns();
@@ -1702,6 +1923,119 @@ function removeZone(id) {
   updateStarList();
   saveToLocalStorage();
 }
+
+// ── Era CRUD ─────────────────────────────────────────
+function addEra(name) {
+  const era = { id: nextEraId++, name };
+  eras.push(era);
+  updateEraList();
+  updateTimelineBar();
+  saveToLocalStorage();
+  return era;
+}
+
+function removeEra(id) {
+  eras = eras.filter(e => e.id !== id);
+  // Remove from all zones' eraIds
+  for (const zone of zones) {
+    if (zone.eraIds) zone.eraIds = zone.eraIds.filter(eid => eid !== id);
+    // Clean up starEraMap: remove this era from all star entries
+    if (zone.starEraMap) {
+      for (const starId of Object.keys(zone.starEraMap)) {
+        zone.starEraMap[starId] = zone.starEraMap[starId].filter(eid => eid !== id);
+        if (zone.starEraMap[starId].length === 0) {
+          delete zone.starEraMap[starId]; // becomes "all eras"
+        }
+      }
+    }
+  }
+  if (currentEraId === id) {
+    currentEraId = null;
+    rebuildZoneMeshes();
+  }
+  updateEraList();
+  updateTimelineBar();
+  updateZoneList();
+  saveToLocalStorage();
+}
+
+function updateEraList() {
+  const listEl = document.getElementById('era-list');
+  listEl.innerHTML = '';
+  for (const era of eras) {
+    const entry = document.createElement('div');
+    entry.className = 'era-entry';
+    entry.innerHTML = `
+      <span>${era.name}</span>
+      <span class="delete-era" title="Delete era">&times;</span>
+    `;
+    entry.querySelector('.delete-era').addEventListener('click', () => removeEra(era.id));
+    listEl.appendChild(entry);
+  }
+}
+
+function updateTimelineBar() {
+  const bar = document.getElementById('timeline-bar');
+  const markersEl = document.getElementById('era-markers');
+  if (eras.length === 0) {
+    bar.classList.remove('visible');
+    return;
+  }
+  bar.classList.add('visible');
+  markersEl.innerHTML = '';
+
+  // "All" marker
+  const allMarker = document.createElement('div');
+  allMarker.className = 'era-marker' + (currentEraId === null ? ' active' : '');
+  allMarker.textContent = 'All';
+  allMarker.addEventListener('click', () => setCurrentEra(null));
+  markersEl.appendChild(allMarker);
+
+  for (const era of eras) {
+    const marker = document.createElement('div');
+    marker.className = 'era-marker' + (currentEraId === era.id ? ' active' : '');
+    marker.textContent = era.name;
+    marker.addEventListener('click', () => setCurrentEra(era.id));
+    markersEl.appendChild(marker);
+  }
+}
+
+function setCurrentEra(eraId) {
+  currentEraId = eraId;
+  rebuildZoneMeshes();
+  updateTimelineBar();
+  saveToLocalStorage();
+}
+
+document.getElementById('btn-add-era').addEventListener('click', () => {
+  const nameInput = document.getElementById('era-name');
+  const name = nameInput.value.trim();
+  if (!name) { alert('Please enter an era name.'); return; }
+  addEra(name);
+  nameInput.value = '';
+});
+
+document.getElementById('btn-era-prev').addEventListener('click', () => {
+  if (eras.length === 0) return;
+  if (currentEraId === null) {
+    setCurrentEra(eras[eras.length - 1].id);
+  } else {
+    const idx = eras.findIndex(e => e.id === currentEraId);
+    if (idx <= 0) setCurrentEra(null);
+    else setCurrentEra(eras[idx - 1].id);
+  }
+});
+
+document.getElementById('btn-era-next').addEventListener('click', () => {
+  if (eras.length === 0) return;
+  if (currentEraId === null) {
+    setCurrentEra(eras[0].id);
+  } else {
+    const idx = eras.findIndex(e => e.id === currentEraId);
+    if (idx >= eras.length - 1) setCurrentEra(null);
+    else setCurrentEra(eras[idx + 1].id);
+  }
+});
 
 // ── Planet CRUD ──────────────────────────────────────
 function addPlanet(name, starId, orbitalRadius, orbitalAngle, classification, size) {
@@ -2128,10 +2462,7 @@ document.getElementById('ctx-multi-add-zone').addEventListener('click', () => {
         for (const starId of selectedStarIds) {
           const star = stars.find(s => s.id === starId);
           if (!star) continue;
-          if (!star.zoneIds) star.zoneIds = [];
-          // Add to zone (multi-zone: don't remove from existing)
-          if (!star.zoneIds.includes(zone.id)) star.zoneIds.push(zone.id);
-          if (!zone.starIds.includes(starId)) zone.starIds.push(starId);
+          addStarToZone(zone, starId);
         }
         rebuildZoneMeshes();
         updateStarList();
@@ -2527,8 +2858,25 @@ function openEditZoneModal(zone) {
   document.getElementById('edit-zone-name').value = zone.name;
   document.getElementById('edit-zone-color').value = zone.color;
   populateEditZoneStarList(zone);
+  populateEditZoneEras(zone);
   document.getElementById('edit-zone-overlay').classList.add('visible');
   document.getElementById('edit-zone-name').focus();
+}
+
+function populateEditZoneEras(zone) {
+  const container = document.getElementById('edit-zone-eras');
+  container.innerHTML = '';
+  if (eras.length === 0) {
+    container.innerHTML = '<div style="color:#667799; font-size:11px; font-style:italic; padding:4px 6px;">No eras defined</div>';
+    return;
+  }
+  const zoneEras = zone.eraIds || [];
+  for (const era of eras) {
+    const label = document.createElement('label');
+    label.className = 'era-checkbox-entry';
+    label.innerHTML = `<input type="checkbox" value="${era.id}" ${zoneEras.includes(era.id) ? 'checked' : ''}> ${era.name}`;
+    container.appendChild(label);
+  }
 }
 
 function populateEditZoneStarList(zone) {
@@ -2542,14 +2890,25 @@ function populateEditZoneStarList(zone) {
   for (const star of zoneStars) {
     const entry = document.createElement('div');
     entry.className = 'zone-star-entry';
+    // Build era badges
+    let eraBadges = '';
+    if (zone.starEraMap && zone.starEraMap[star.id] && zone.starEraMap[star.id].length > 0) {
+      const eraNames = zone.starEraMap[star.id].map(eid => {
+        const era = eras.find(e => e.id === eid);
+        return era ? era.name : '?';
+      });
+      eraBadges = eraNames.map(n => `<span style="display:inline-block;background:rgba(100,140,255,0.2);border:1px solid rgba(100,140,255,0.35);border-radius:3px;padding:0 4px;margin-left:4px;font-size:10px;color:#7ab4ff;">${n}</span>`).join('');
+    } else {
+      eraBadges = '<span style="display:inline-block;background:rgba(100,255,140,0.15);border:1px solid rgba(100,255,140,0.3);border-radius:3px;padding:0 4px;margin-left:4px;font-size:10px;color:#7aff99;">All Eras</span>';
+    }
+    const removeLabel = currentEraId !== null && zone.starEraMap && zone.starEraMap[star.id] && zone.starEraMap[star.id].length > 0
+      ? 'Remove from Era' : 'Remove';
     entry.innerHTML = `
-      <span>${star.name} <span style="color:#667799; font-size:11px;">(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)})</span></span>
-      <span class="remove-from-zone">Remove</span>
+      <span>${star.name} <span style="color:#667799; font-size:11px;">(${formatCoord(star.x)}, ${formatCoord(star.y)}, ${formatCoord(star.z)})</span>${eraBadges}</span>
+      <span class="remove-from-zone">${removeLabel}</span>
     `;
     entry.querySelector('.remove-from-zone').addEventListener('click', () => {
-      // Remove star from zone
-      zone.starIds = zone.starIds.filter(sid => sid !== star.id);
-      if (star.zoneIds) star.zoneIds = star.zoneIds.filter(zid => zid !== zone.id);
+      removeStarFromZone(zone, star.id);
       populateEditZoneStarList(zone);
       rebuildZoneMeshes();
       updateStarList();
@@ -2574,6 +2933,9 @@ document.getElementById('btn-edit-zone-save').addEventListener('click', () => {
   if (zone) {
     zone.name = name;
     zone.color = color;
+    // Save era assignments from checkboxes
+    const eraCheckboxes = document.getElementById('edit-zone-eras').querySelectorAll('input[type="checkbox"]');
+    zone.eraIds = Array.from(eraCheckboxes).filter(cb => cb.checked).map(cb => parseInt(cb.value));
     rebuildZoneMeshes();
     updateZoneList();
     updateZoneDropdowns();
@@ -2599,6 +2961,7 @@ let ssIsDragging = false, ssDragStartX = 0, ssDragStartY = 0, ssPanStartX = 0, s
 let orbitAnimating = false;
 let orbitTime = 0;        // accumulated animation time in seconds
 let orbitLastFrame = 0;   // timestamp of last frame
+let orbitSpeedMult = 1;   // speed multiplier from slider
 
 function openSolarSystemPopup(star) {
   solarSystemStarId = star.id;
@@ -2618,9 +2981,12 @@ function closeSolarSystemPopup() {
   orbitAnimating = false;
   orbitTime = 0;
   orbitLastFrame = 0;
+  orbitSpeedMult = 1;
   const btn = document.getElementById('btn-solar-animate');
   btn.textContent = '\u25B6 Animate';
   btn.classList.remove('active');
+  document.getElementById('orbit-speed-slider').value = 0;
+  document.getElementById('orbit-speed-label').textContent = '1x';
 }
 
 function redrawSolarSystem() {
@@ -2696,7 +3062,7 @@ function drawSolarSystem(star) {
     const pSize = planet.size || classInfo.defaultSize;
     const planetR = Math.max(3, pSize * bodyScale * Math.min(ssZoom, 4));
     const orbitR = planet.orbitalRadius * scale;
-    const orbitSpeed = orbitAnimating ? (1 / Math.sqrt(planet.orbitalRadius)) * 0.5 : 0;
+    const orbitSpeed = orbitAnimating ? (1 / Math.sqrt(planet.orbitalRadius)) * 0.5 * orbitSpeedMult : 0;
     const angleRad = (planet.orbitalAngle * Math.PI) / 180 + orbitTime * orbitSpeed;
     const px = centerX + Math.cos(angleRad) * orbitR;
     const py = centerY - Math.sin(angleRad) * orbitR; // canvas Y is inverted
@@ -2742,7 +3108,7 @@ function drawSolarSystem(star) {
       ctx.stroke();
       ctx.setLineDash([]);
 
-      const moonOrbitSpeed = orbitAnimating ? (1 / Math.sqrt(moon.orbitalRadius * 0.1)) * 0.5 : 0;
+      const moonOrbitSpeed = orbitAnimating ? (1 / Math.sqrt(moon.orbitalRadius * 0.1)) * 0.5 * orbitSpeedMult : 0;
       const moonAngleRad = (moon.orbitalAngle * Math.PI) / 180 + orbitTime * moonOrbitSpeed;
       const mx = px + Math.cos(moonAngleRad) * moonOrbitR;
       const my = py - Math.sin(moonAngleRad) * moonOrbitR;
@@ -2877,6 +3243,14 @@ document.getElementById('btn-solar-animate').addEventListener('click', () => {
     btn.textContent = '\u25B6 Animate';
     btn.classList.remove('active');
   }
+});
+
+document.getElementById('orbit-speed-slider').addEventListener('input', (e) => {
+  orbitSpeedMult = Math.pow(10, parseFloat(e.target.value));
+  const label = document.getElementById('orbit-speed-label');
+  if (orbitSpeedMult >= 10) label.textContent = Math.round(orbitSpeedMult) + 'x';
+  else if (orbitSpeedMult >= 1) label.textContent = orbitSpeedMult.toFixed(1) + 'x';
+  else label.textContent = orbitSpeedMult.toFixed(2) + 'x';
 });
 
 document.getElementById('btn-solar-edit-star').addEventListener('click', () => {
@@ -3350,11 +3724,25 @@ function updateZoneList() {
     const starCount = zone.starIds.length;
     const entry = document.createElement('div');
     entry.className = 'zone-entry' + (zone.hidden ? ' zone-hidden' : '');
+    // Build era badges
+    let eraBadges = '';
+    if (eras.length > 0) {
+      const zoneEras = zone.eraIds && zone.eraIds.length > 0 ? zone.eraIds : [];
+      if (zoneEras.length === 0) {
+        eraBadges = '<span class="zone-era-badges"><span class="zone-era-badge all">all</span></span>';
+      } else {
+        eraBadges = '<span class="zone-era-badges">' + zoneEras.map(eid => {
+          const era = eras.find(e => e.id === eid);
+          return era ? `<span class="zone-era-badge">${era.name}</span>` : '';
+        }).join('') + '</span>';
+      }
+    }
     entry.innerHTML = `
       <div>
         <span class="zone-color-dot" style="background:${colorInfo.css}"></span>
         <span class="zone-name">${zone.name}</span>
         <span class="zone-star-count">(${starCount} star${starCount !== 1 ? 's' : ''})</span>
+        ${eraBadges}
       </div>
       <div>
         <span class="toggle-zone${zone.hidden ? ' hidden' : ''}" title="${zone.hidden ? 'Show' : 'Hide'} zone">${zone.hidden ? '&#9711;' : '&#9673;'}</span>
@@ -3390,7 +3778,7 @@ function updateZoneDropdowns() {
 
 // ── Export / Import ──────────────────────────────────
 document.getElementById('btn-export').addEventListener('click', () => {
-  const data = JSON.stringify({ stars, zones, planets, moons, starFolders }, null, 2);
+  const data = JSON.stringify({ stars, zones, planets, moons, starFolders, eras }, null, 2);
   const blob = new Blob([data], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -3412,9 +3800,10 @@ document.getElementById('file-input').addEventListener('change', (e) => {
     try {
       const imported = JSON.parse(ev.target.result);
 
-      // Map old IDs to new IDs for zone/star/planet references
+      // Map old IDs to new IDs for zone/star/planet/era references
       const zoneIdMap = {};
       const starIdMap = {};
+      const eraIdMap = {};
 
       if (Array.isArray(imported)) {
         // Simple array of stars
@@ -3425,11 +3814,28 @@ document.getElementById('file-input').addEventListener('change', (e) => {
           }
         }
       } else if (imported.stars) {
-        // Import zones first
+        // Import eras first
+        if (imported.eras && Array.isArray(imported.eras)) {
+          for (const e of imported.eras) {
+            if (e.name) {
+              const newEra = { id: nextEraId++, name: e.name };
+              eraIdMap[e.id] = newEra.id;
+              eras.push(newEra);
+            }
+          }
+        }
+        // Import zones
         if (imported.zones && Array.isArray(imported.zones)) {
           for (const z of imported.zones) {
             if (z.name && z.color) {
-              const newZone = { id: nextZoneId++, name: z.name, color: z.color, starIds: [], hidden: z.hidden || false };
+              // Remap eraIds
+              let eraIds = [];
+              if (z.eraIds && Array.isArray(z.eraIds)) {
+                eraIds = z.eraIds.map(eid => eraIdMap[eid]).filter(Boolean);
+              }
+              const newZone = { id: nextZoneId++, name: z.name, color: z.color, starIds: [], hidden: z.hidden || false, eraIds, starEraMap: {} };
+              // Store original starEraMap for remapping after stars are imported
+              if (z.starEraMap) newZone._importStarEraMap = z.starEraMap;
               zoneIdMap[z.id] = newZone.id;
               zones.push(newZone);
             }
@@ -3472,6 +3878,21 @@ document.getElementById('file-input').addEventListener('change', (e) => {
             }
           }
         }
+        // Remap starEraMap for imported zones
+        for (const zone of zones) {
+          if (zone._importStarEraMap) {
+            for (const [oldStarId, eraIdList] of Object.entries(zone._importStarEraMap)) {
+              const newStarId = starIdMap[oldStarId];
+              if (newStarId && Array.isArray(eraIdList)) {
+                const remappedEras = eraIdList.map(eid => eraIdMap[eid]).filter(Boolean);
+                if (remappedEras.length > 0) {
+                  zone.starEraMap[newStarId] = remappedEras;
+                }
+              }
+            }
+            delete zone._importStarEraMap;
+          }
+        }
         // Import planets
         const planetIdMap = {};
         if (imported.planets && Array.isArray(imported.planets)) {
@@ -3509,6 +3930,8 @@ document.getElementById('file-input').addEventListener('change', (e) => {
       updateStarList();
       updateZoneList();
       updateZoneDropdowns();
+      updateEraList();
+      updateTimelineBar();
       saveToLocalStorage();
     } catch (err) {
       alert('Invalid JSON file: ' + err.message);
@@ -3530,11 +3953,14 @@ document.getElementById('btn-clear-all').addEventListener('click', () => {
   planets = [];
   moons = [];
   starFolders = [];
+  eras = [];
+  currentEraId = null;
   nextStarId = 1;
   nextZoneId = 1;
   nextPlanetId = 1;
   nextMoonId = 1;
   nextFolderId = 1;
+  nextEraId = 1;
   measureSelection = [];
   clearMeasureLine();
   rebuildStarMeshes();
@@ -3543,6 +3969,8 @@ document.getElementById('btn-clear-all').addEventListener('click', () => {
   updateStarList();
   updateZoneList();
   updateZoneDropdowns();
+  updateEraList();
+  updateTimelineBar();
   saveToLocalStorage();
 });
 
@@ -3558,6 +3986,9 @@ function saveToLocalStorage() {
   localStorage.setItem('universe-map-nextPlanetId', nextPlanetId);
   localStorage.setItem('universe-map-nextMoonId', nextMoonId);
   localStorage.setItem('universe-map-nextFolderId', nextFolderId);
+  localStorage.setItem('universe-map-eras', JSON.stringify(eras));
+  localStorage.setItem('universe-map-nextEraId', nextEraId);
+  localStorage.setItem('universe-map-currentEraId', JSON.stringify(currentEraId));
 }
 
 function loadFromLocalStorage() {
@@ -3601,6 +4032,21 @@ function loadFromLocalStorage() {
       nextFolderId = nfid ? parseInt(nfid) : (starFolders.length ? Math.max(...starFolders.map(f => f.id)) + 1 : 1);
     }
 
+    // Load eras
+    const eraData = localStorage.getItem('universe-map-eras');
+    const neid = localStorage.getItem('universe-map-nextEraId');
+    const ceid = localStorage.getItem('universe-map-currentEraId');
+    if (eraData) {
+      eras = JSON.parse(eraData);
+      nextEraId = neid ? parseInt(neid) : (eras.length ? Math.max(...eras.map(e => e.id)) + 1 : 1);
+    }
+    currentEraId = ceid ? JSON.parse(ceid) : null;
+    // Migrate zones: ensure eraIds and starEraMap exist
+    for (const z of zones) {
+      if (!z.eraIds) z.eraIds = [];
+      if (!z.starEraMap) z.starEraMap = {};
+    }
+
     rebuildStarMeshes();
     rebuildPlanetMeshes();
     rebuildZoneMeshes();
@@ -3608,6 +4054,8 @@ function loadFromLocalStorage() {
     updateStarList();
     updateZoneList();
     updateZoneDropdowns();
+    updateEraList();
+    updateTimelineBar();
   } catch (e) {
     console.warn('Failed to load from localStorage', e);
   }
