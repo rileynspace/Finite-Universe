@@ -1891,10 +1891,14 @@ function updateStar(id, name, x, y, z, newZoneIds, size, folderId) {
 
   rebuildStarMeshes();
   rebuildZoneMeshes();
-  autoAssignStarsToZones();
   updateStarList();
   updateZoneList();
   saveToLocalStorage();
+
+  // Refresh the solar system popup title if this star is currently displayed
+  if (solarSystemStarId === id) {
+    document.getElementById('solar-system-title').textContent = `${name} System`;
+  }
 }
 
 function removeStarData(id) {
