@@ -1897,7 +1897,7 @@ function updateStar(id, name, x, y, z, newZoneIds, size, folderId) {
   saveToLocalStorage();
 }
 
-function removeStar(id) {
+function removeStarData(id) {
   const star = stars.find(s => s.id === id);
   if (star && star.zoneIds) {
     for (const zid of [...star.zoneIds]) {
@@ -1911,6 +1911,10 @@ function removeStar(id) {
   moons = moons.filter(m => !removedPlanetIds.includes(m.planetId));
   measureSelection = measureSelection.filter(s => !(s.type === 'star' && s.id === id));
   selectedStarIds.delete(id);
+}
+
+function removeStar(id) {
+  removeStarData(id);
   clearMeasureLine();
   rebuildStarMeshes();
   rebuildPlanetMeshes();
@@ -2534,8 +2538,15 @@ document.getElementById('ctx-multi-delete').addEventListener('click', () => {
   closeContextMenu();
   if (confirm(`Delete ${count} selected star${count !== 1 ? 's' : ''}?`)) {
     const ids = Array.from(selectedStarIds);
-    for (const id of ids) removeStar(id);
+    for (const id of ids) removeStarData(id);
     selectedStarIds.clear();
+    clearMeasureLine();
+    rebuildStarMeshes();
+    rebuildPlanetMeshes();
+    rebuildZoneMeshes();
+    updateStarList();
+    updateZoneList();
+    saveToLocalStorage();
     highlightStarInList();
   }
 });
@@ -2870,6 +2881,9 @@ document.getElementById('btn-edit-save').addEventListener('click', () => {
     alert(`Coordinates must be between 0 and ${UNIVERSE_SIZE}.`);
     return;
   }
+
+  const star = stars.find(s => s.id === id);
+  if (!star) { alert('Star not found.'); return; }
 
   const size = sliderToSize(document.getElementById('edit-star-size').value) || DEFAULT_STAR_SIZE;
   updateStar(id, name, xn, yn, zn, newZoneIds, size, folderId);
